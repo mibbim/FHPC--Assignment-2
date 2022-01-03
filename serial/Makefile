@@ -1,9 +1,10 @@
-SRC = serial_kd_tree.c 
+CC = mpicc
+CCFLAGS = -Wall -Wextra 
+CCFLAGS_D = -DDEBUG -Wall -Wextra 
 
-CC =  mpicc
-CFLAGS = -O3
-EXE:=$(SRC:.c=.x)
+SRC = serial_kd_tree.c
 
+EXE = $(SRC:.c=.x)
 
 # eliminate default suffixes
 .SUFFIXES:
@@ -13,12 +14,23 @@ SUFFIXES =
 .SUFFIXES: .c .x
 
 all: $(EXE)
+
 .PHONY: all
-%.x: %.c
-	$(CC) $< -o $@ $(CFLAGS)
+
+%.x: %.c 
+	$(CC) $< -o $@ $(CCFLAGS)
+
+
+debug: $(EXE)
+
+.PHONY: debug
+
+%.x: %.c 
+	$(CC) $< -o $@ $(CCFLAGS_D)
+
 
 
 clean:
-.PHONY: clean
 	rm -f $(EXE) *~
 
+.PHONY: clean
