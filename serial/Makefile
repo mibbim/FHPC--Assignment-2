@@ -2,7 +2,8 @@ CC = mpicc
 CCFLAGS = -Wall -Wextra 
 CCFLAGS_D = -DDEBUG -Wall -Wextra 
 
-SRC = serial_kd_tree.c
+SRC = serial_kd_tree.c \
+		partition_test.c
 
 EXE = $(SRC:.c=.x)
 
