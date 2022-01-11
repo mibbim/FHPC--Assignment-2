@@ -124,16 +124,53 @@ void build_kdtree(TYPE *dataset, size_t size, int ndim, int axis, KdNode *head_l
     build_kdtree(right_part, right_size, ndim, this_node_p->axis, head_location, right_idx);
 }
 
-void swap(TYPE* a, TYPE* b)
+void swap_k(TYPE *a, TYPE *b)
 {
-    TYPE temp = *a;
-    *a = *b;
-    *b = temp;
+    TYPE temp[NDIM];
+    memcpy(temp, a, NDIM * sizeof(TYPE));
+    memcpy(a, b, NDIM * sizeof(TYPE));
+    memcpy(b, temp, NDIM * sizeof(TYPE));
 }
 
+TYPE * partition_k(TYPE *start, TYPE *end, TYPE pivot_value, int axis)
+{
+    {
+        TYPE *l = start;
+        TYPE *r = end;
 
-TYPE *partition(TYPE *dataset, size_t dataset_size, TYPE mean) {
+        int step = NDIM;
 
+        TYPE *max_l = start;
+
+        while (1)
+        {
+            while ((l <= r) && l[axis] <= pivot_value)
+            {
+                if (l[axis] > max_l[axis])
+                    max_l = l;
+                l += step;
+            }
+
+            while ((l <= r) && r[axis] > pivot_value)
+            {
+                r -= step;
+            }
+
+            if (l > r)
+                break;
+
+            swap_k(l, r);
+
+            if (l[axis] > max_l[axis])
+                max_l = l;
+            l += step;
+            r -= step;
+        }
+
+        if (r[axis] != max_l[axis])
+            swap_k(r, max_l);
+        return r;
+    }
 }
 
 // void build_kdtree_1D(TYPE *dataset, KdNode *location, int axis,
