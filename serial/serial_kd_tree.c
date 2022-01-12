@@ -48,6 +48,16 @@ void print_dataset(TYPE *dataset, size_t dataset_size, int ndim)
     }
 };
 
+void print_k_point(TYPE *p)
+{
+    for (int i = 0; i < NDIM; ++i)
+    {
+        printf("p[%d]: %f,", i, p[i]);
+    }
+    printf("\n");
+    fflush(stdout);
+}
+
 void print_node(KdNode *node)
 {
     printf("\n------------------------\n");
@@ -85,47 +95,6 @@ size_t left_child(size_t myidx)
 size_t right_child(size_t myidx)
 {
     return 2 * myidx + 2;
-}
-
-void build_kdtree(TYPE *dataset, size_t size, int ndim, int axis, KdNode *head_location, size_t myidx)
-{
-    if (size < 1)
-        return;
-
-    KdNode *this_node_p = &head_location[myidx];
-    this_node_p->axis = (axis + 1) % NDIM;
-    this_node_p->idx = myidx;
-
-#ifdef DEBUG
-    printf("creating a node: \n");
-    printf("data: %p, size: %ld, axis: %d, head_position: %p, %p, idx: %ld \n",
-           dataset, size, axis, head_location, &head_location[0], myidx);
-    printf("node location: %p \n", this_node_p);
-#endif
-
-    size_t left_idx = left_child(myidx);
-    size_t right_idx = right_child(myidx);
-    this_node_p->left = &head_location[left_idx];
-    this_node_p->right = &head_location[right_idx];
-
-    memcpy(this_node_p->value, &dataset[size / 2 * ndim], NDIM * sizeof(TYPE));
-
-#ifdef DEBUG
-    printf("children location: \n");
-    printf("\tl: %p, r: %p\n", this_node_p->left, this_node_p->right);
-    printf("\tvalues: %f, %f\n\n", this_node_p->value[0], this_node_p->value[1]);
-    fflush(stdout);
-#endif
-
-    // this_node_p.value = dataset + (size * ndim / 2);
-    //  Only for testing purposes
-    TYPE *left_part = dataset;
-    size_t left_size = size / 2;
-    TYPE *right_part = &dataset[left_size + 1];
-    size_t right_size = size - left_size - 1;
-
-    build_kdtree(left_part, left_size, ndim, this_node_p->axis, head_location, left_idx);
-    build_kdtree(right_part, right_size, ndim, this_node_p->axis, head_location, right_idx);
 }
 
 void swap_k(TYPE *a, TYPE *b)
@@ -175,28 +144,18 @@ TYPE *partition_k(TYPE *start, TYPE *end, TYPE pivot_value, int axis)
     return r;
 }
 
-void print_k_point(TYPE *p)
-{
-    for (int i = 0; i < NDIM; ++i)
-    {
-        printf("p[%d]: %f,", i, p[i]);
-    }
-    printf("\n");
-    fflush(stdout);
-}
-
-void build_kdtree_v2(TYPE *dataset_start, TYPE *dataset_end, // addresses of the first and the las point in the dataset
+KdNode *build_kdtree(TYPE *dataset_start, TYPE *dataset_end, // addresses of the first and the las point in the dataset
                      KdNode *tree_location,                  // location of the root of the tree
                      int prev_axis,                          // axis uset for the partitioning at the previous branch
-                     size_t my_idx,                          // index of the current node in the array cointaing the trre
                      TYPE *mins, TYPE *maxs,                 // vectors of extreem values in the curren branch along each axes
-                     size_t max_idx)
+                     size_t max_idx,
+                     KdNode **current_free_block)
 {
     if (dataset_start > dataset_end)
-        return;
+        return NULL;
 
-    KdNode *this_node = tree_location + my_idx;
-
+    size_t my_idx = (*current_free_block) - tree_location;
+    KdNode *this_node = (*current_free_block)++;
     //     find_mean_approx(dataset_size, dataset_size, mean);
     this_node->idx = my_idx;
     this_node->axis = (prev_axis + 1) % NDIM;
@@ -220,8 +179,8 @@ void build_kdtree_v2(TYPE *dataset_start, TYPE *dataset_end, // addresses of the
     l_maxs[this_node->axis] = pivot[this_node->axis];
     r_mins[this_node->axis] = pivot[this_node->axis];
 
-    size_t left_idx = left_child(my_idx);
-    size_t right_idx = right_child(my_idx);
+    // size_t left_idx = left_child(my_idx);
+    // size_t right_idx = right_child(my_idx);
 
 #ifdef DEBUG
     printf("creating node: \n");
@@ -229,21 +188,21 @@ void build_kdtree_v2(TYPE *dataset_start, TYPE *dataset_end, // addresses of the
 
 #endif
 
-    if (left_idx < max_idx)
+    if (dataset_start < pivot)
     {
-        this_node->left = &tree_location[left_idx];
-        build_kdtree_v2(dataset_start, pivot - NDIM, tree_location, this_node->axis, left_idx, mins, l_maxs, max_idx);
+        this_node->left = build_kdtree(dataset_start, pivot - NDIM, tree_location, this_node->axis, mins, l_maxs, max_idx, current_free_block);
 
-        if (right_idx < max_idx)
+        if (pivot < dataset_end)
         {
-            this_node->right = &tree_location[right_idx];
-            build_kdtree_v2(pivot + NDIM, dataset_end, tree_location, this_node->axis, right_idx, r_mins, maxs, max_idx);
+            this_node->right = build_kdtree(pivot + NDIM, dataset_end, tree_location, this_node->axis, r_mins, maxs, max_idx, current_free_block);
         }
         else
             this_node->right = NULL;
     }
     else
         this_node->left = NULL;
+
+    return this_node;
 }
 
 // int main(int argc, char **argv)
@@ -283,10 +242,14 @@ int main()
 
     // KdNode *my_tree = (KdNode *)OOM_GUARD(malloc(dataset_size * sizeof(KdNode)));
     KdNode *my_tree = (KdNode *)malloc(dataset_size * sizeof(KdNode));
-    // build_kdtree_v(dataset, dataset_size, NDIM, -1, my_tree, 0);
-    build_kdtree_v2(dataset, dataset + (dataset_size - 1) * NDIM,
-                    my_tree, -1, 0, mins, maxs, dataset_size);
 
+    // build_kdtree_v(dataset, dataset_size, NDIM, -1, my_tree, 0);
+    KdNode *free_block = my_tree;
+    // KdNode *my_tree = build_kdtree(dataset, dataset + NDIM,
+    //              my_tree, -1, mins, maxs, dataset_size, &free_block);
+    build_kdtree(dataset, dataset + (dataset_size - 1) * NDIM,
+                 my_tree, -1, mins, maxs, dataset_size, &free_block);
+    free_block = NULL; 
 #ifdef DEBUG
     printf("TREE CREATED \n");
     fflush(stdout);
