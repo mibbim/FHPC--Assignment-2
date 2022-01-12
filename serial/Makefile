@@ -1,6 +1,7 @@
-CC = mpicc
+# CC = mpicc
+CC = cc
 CCFLAGS = -Wall -Wextra 
-CCFLAGS_D = -DDEBUG -Wall -Wextra 
+CCFLAGS_D = -DDEBUG -Wall -Wextra -g
 
 SRC = serial_kd_tree.c \
 		partition_test.c
