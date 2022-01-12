@@ -64,20 +64,20 @@ TYPE *partition_k(TYPE *start, TYPE *end, TYPE pivot_value, int axis)
         while (1)
         {
 #ifdef DEBUG
-            printf("new iteration %d axis: %d, pivot: %f \n", i++, axis, pivot_value);
-            print_dataset(start, (end + NDIM - start) / NDIM, NDIM);
+            // printf("new iteration %d axis: %d, pivot: %f \n", i++, axis, pivot_value);
+            // print_dataset(start, (end + NDIM - start) / NDIM, NDIM);
 #endif
 
 #ifdef DEBUG
-            printf("processing l: ");
-            fflush(stdout);
+            // printf("processing l: ");
+            // fflush(stdout);
 #endif
             // while ((l<=r) && (QS_COMPARE(list[l],piv) <= 0)) l++;
             while ((l <= r) && l[axis] <= pivot_value)
             {
 #ifdef DEBUG
-                printf("%f ", l[axis]);
-                fflush(stdout);
+                // printf("%f ", l[axis]);
+                // fflush(stdout);
 #endif
 
                 if (l[axis] > max_l[axis])
@@ -85,15 +85,15 @@ TYPE *partition_k(TYPE *start, TYPE *end, TYPE pivot_value, int axis)
                 l += step;
             }
 #ifdef DEBUG
-            printf("processing r: ");
-            fflush(stdout);
+            // printf("processing r: ");
+            // fflush(stdout);
 #endif
             // while ((l<=r) && (QS_COMPARE(list[r],piv)  > 0)) r--;
             while ((l <= r) && r[axis] > pivot_value)
             {
 #ifdef DEBUG
-                printf("%f ", r[axis]);
-                fflush(stdout);
+                // printf("%f ", r[axis]);
+                // fflush(stdout);
 #endif
                 r -= step;
             }
@@ -108,13 +108,13 @@ TYPE *partition_k(TYPE *start, TYPE *end, TYPE pivot_value, int axis)
                 break;
 
 #ifdef DEBUG
-            printf("swapping %f and %f ...", l[axis], r[axis]);
-            fflush(stdout);
+                // printf("swapping %f and %f ...", l[axis], r[axis]);
+                // fflush(stdout);
 #endif
             swap_k(l, r);
 #ifdef DEBUG
-            printf("done \n");
-            fflush(stdout);
+            // printf("done \n");
+            // fflush(stdout);
 #endif
             if (l[axis] > max_l[axis])
                 max_l = l;
@@ -123,9 +123,9 @@ TYPE *partition_k(TYPE *start, TYPE *end, TYPE pivot_value, int axis)
         }
 
 #ifdef DEBUG
-        printf("swapping the max :\n");
-        printf("r: %f, %f, maxl: %f, %f\n", *r, r[1], *max_l, max_l[1]);
-        fflush(stdout);
+        // printf("swapping the max :\n");
+        // printf("r: %f, %f, maxl: %f, %f\n", *r, r[1], *max_l, max_l[1]);
+        // fflush(stdout);
 #endif
         if (r[axis] != max_l[axis])
             swap_k(r, max_l);
@@ -175,7 +175,7 @@ TYPE *partition(TYPE *start, TYPE *end, TYPE pivot_value)
 }
 int main()
 {
-    size_t dataset_size = 5;
+    size_t dataset_size = 2;
     size_t effective_size = dataset_size * NDIM;
     TYPE *dataset = (TYPE *)OOM_GUARD(malloc(dataset_size * NDIM * sizeof(TYPE))); // plain array
 
@@ -185,34 +185,12 @@ int main()
         // dataset[offset] = i;
         for (int k = 0; k < NDIM; ++k)
         {
-            // dataset[offset + k] = drand48();
-            dataset[offset + k] = (((int)offset + k) % 5);
+            dataset[offset + k] = drand48();
+            // dataset[offset + k] = (((int)offset + k) % 5);
             // printf(" %f ", dataset[offset + k]);
         }
         // printf("\n");
     }
-
-    TYPE mean = 2;
-    TYPE *pivot;
-    // pivot = partition(dataset, dataset + effective_size - 1, mean);
-
-#ifdef DEBUG
-    // printf("\n AFTER PARTITION \n");
-    // fflush(stdout);
-    // print_dataset(dataset, dataset_size, NDIM);
-    // fflush(stdout);
-    // // printf("pivot: %f, following: %f, prev: %f \n", *pivot, *(pivot+1), *(pivot-1));
-    // printf("wanted: %f, pivot: %f \n", mean, *pivot);
-#endif
-
-    int k = 0;
-    printf("MODIFICO ASSE %d \n ", k);
-    for (size_t i = 0; i < dataset_size * NDIM; i += NDIM)
-    {
-        (&dataset[i])[k] += 0.5;
-        // printf("% f \n", (&dataset[i])[k]);
-    }
-    fflush(stdout);
 
 #ifdef DEBUG
     printf("\n DATASET CREATED \n");
@@ -221,6 +199,11 @@ int main()
     fflush(stdout);
 #endif
 
+    TYPE mean = 0;
+    int k = 0;
+    TYPE *pivot;
+    pivot = partition_k(dataset, dataset + effective_size - NDIM, mean, 0);
+
     pivot = partition_k(dataset, dataset + effective_size - NDIM, mean, k);
 
 #ifdef DEBUG
@@ -232,17 +215,17 @@ int main()
     printf("wanted: %f, pivot: %f \n", mean, pivot[k]);
 #endif
 
-    k = 1;
-    pivot = partition_k(dataset, dataset + effective_size - NDIM, mean, k);
+//     k = 1;
+//     pivot = partition_k(dataset, dataset + effective_size - NDIM, mean, k);
 
-#ifdef DEBUG
-    printf("\n AFTER PARTITION K=%d\n", k);
-    fflush(stdout);
-    print_dataset(dataset, dataset_size, NDIM);
-    fflush(stdout);
-    // printf("pivot: %f, following: %f, prev: %f \n", *pivot, *(pivot+1), *(pivot-1));
-    printf("wanted: %f, pivot: %f \n", mean, pivot[k]);
-#endif
+// #ifdef DEBUG
+//     printf("\n AFTER PARTITION K=%d\n", k);
+//     fflush(stdout);
+//     print_dataset(dataset, dataset_size, NDIM);
+//     fflush(stdout);
+//     // printf("pivot: %f, following: %f, prev: %f \n", *pivot, *(pivot+1), *(pivot-1));
+//     printf("wanted: %f, pivot: %f \n", mean, pivot[k]);
+// #endif
 
     return 0;
 }
