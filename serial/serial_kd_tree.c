@@ -24,10 +24,6 @@ void *OOM_GUARD(void *p)
     return p;
 };
 
-// struct kpoint TYPE[NDIM];
-//  typedef TYPE Kpoint[2];
-// typedef struct Kpoint{TYPE* x;} Kpoint;
-
 typedef struct KdNode
 {
     int axis;                    // axis of the split
@@ -37,6 +33,7 @@ typedef struct KdNode
 } KdNode;
 
 void print_dataset(TYPE *dataset, size_t dataset_size, int ndim)
+/* Utility fuction */
 {
     // size_t effective_size = dataset_size * ndim;
     for (size_t i = 0; i < dataset_size; ++i)
@@ -49,6 +46,7 @@ void print_dataset(TYPE *dataset, size_t dataset_size, int ndim)
 };
 
 void print_k_point(TYPE *p)
+/* Utility function */
 {
     for (int i = 0; i < NDIM; ++i)
     {
@@ -59,6 +57,7 @@ void print_k_point(TYPE *p)
 }
 
 void print_node(KdNode *node)
+/* Utility fuction */
 {
     printf("\n------------------------\n");
     printf("\tnode with index %ld at location %u\n", node->idx, node);
@@ -67,13 +66,10 @@ void print_node(KdNode *node)
     printf("\tAxis: %d \n\tLeft: %u, Right: %u \n\n", node->axis, node->left, node->right);
     printf("------------------------\n\n");
     fflush(stdout);
-    // printf("\t left address %p \n", node->left);
-    // fflush(stdout);
-    // printf("\t left idx %ld ", node.left->idx);
-    // fflush(stdout);
 }
 
 void print_x_dfs(KdNode *head)
+/* Utility function */
 {
     if (head != NULL)
     {
@@ -87,15 +83,15 @@ void print_x_dfs(KdNode *head)
     }
 }
 
-size_t left_child(size_t myidx)
-{
-    return 2 * myidx + 1;
-}
+// size_t left_child(size_t myidx)
+// {
+//     return 2 * myidx + 1;
+// }
 
-size_t right_child(size_t myidx)
-{
-    return 2 * myidx + 2;
-}
+// size_t right_child(size_t myidx)
+// {
+//     return 2 * myidx + 2;
+// }
 
 void swap_k(TYPE *a, TYPE *b)
 {
@@ -160,15 +156,11 @@ KdNode *build_kdtree(TYPE *dataset_start, TYPE *dataset_end, // addresses of the
     this_node->idx = my_idx;
     this_node->axis = (prev_axis + 1) % NDIM;
 
-    // TYPE l_mins[NDIM];
-    // TYPE r_maxs[NDIM];
     TYPE l_maxs[NDIM];
     TYPE r_mins[NDIM];
 
     memcpy(l_maxs, maxs, NDIM * sizeof(TYPE));
     memcpy(r_mins, mins, NDIM * sizeof(TYPE));
-    // memcpy(r_maxs, maxs, NDIM * sizeof(TYPE));
-    // memcpy(l_mins, mins, NDIM * sizeof(TYPE));
 
     TYPE mean = 0.5 * (mins[this_node->axis] + maxs[this_node->axis]);
 
@@ -179,9 +171,7 @@ KdNode *build_kdtree(TYPE *dataset_start, TYPE *dataset_end, // addresses of the
     l_maxs[this_node->axis] = pivot[this_node->axis];
     r_mins[this_node->axis] = pivot[this_node->axis];
 
-    // size_t left_idx = left_child(my_idx);
-    // size_t right_idx = right_child(my_idx);
-
+ 
 #ifdef DEBUG
     printf("creating node: \n");
     print_node(this_node);
@@ -249,7 +239,7 @@ int main()
     //              my_tree, -1, mins, maxs, dataset_size, &free_block);
     build_kdtree(dataset, dataset + (dataset_size - 1) * NDIM,
                  my_tree, -1, mins, maxs, dataset_size, &free_block);
-    free_block = NULL; 
+    free_block = NULL;
 #ifdef DEBUG
     printf("TREE CREATED \n");
     fflush(stdout);
