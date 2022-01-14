@@ -29,6 +29,7 @@ typedef struct KdNode
     int axis;                    // axis of the split
     size_t idx;                  // index in the array
     struct KdNode *left, *right; // children
+    size_t left_idx, right_idx;
     TYPE value[NDIM];            // value stored in the node and splitting value
 } KdNode;
 
@@ -191,6 +192,7 @@ KdNode *build_kdtree(TYPE *dataset_start, TYPE *dataset_end, // addresses of the
     if (dataset_start < pivot)
     {
         size_t l_idx = ++(* current_last_index);
+        this_node->left_idx = l_idx;
         this_node->left = build_kdtree(dataset_start, pivot - NDIM, tree_location, this_node->axis, mins, l_maxs, l_idx, current_last_index);
     }
     else
@@ -199,6 +201,7 @@ KdNode *build_kdtree(TYPE *dataset_start, TYPE *dataset_end, // addresses of the
     if (pivot < dataset_end)
     {
         size_t r_idx = ++(* current_last_index);
+        this_node->right_idx = r_idx;
         this_node->right = build_kdtree(pivot + NDIM, dataset_end, tree_location, this_node->axis, r_mins, maxs, r_idx, current_last_index);
     }
     else
@@ -255,7 +258,6 @@ int main()
     size_t starting_idx = 0;
     build_kdtree(dataset, dataset + (dataset_size - 1) * NDIM,
                  my_tree, -1, mins, maxs, starting_idx, &current_last_index);
-                //  my_tree, -1, mins, maxs, starting_idx, &free_block, &current_last_index);
     free_block = NULL;
 #ifdef DEBUG
     printf("TREE CREATED \n");
