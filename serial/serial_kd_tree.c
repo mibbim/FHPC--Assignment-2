@@ -149,16 +149,17 @@ KdNode *build_kdtree(TYPE *dataset_start, TYPE *dataset_end, // addresses of the
                      KdNode *tree_location,                  // location of the root of the tree
                      int prev_axis,                          // axis uset for the partitioning at the previous branch
                      TYPE *mins, TYPE *maxs,                 // vectors of extreem values in the curren branch along each axes
-                     size_t max_idx,
-                     KdNode **current_free_block,
-                     size_t *current_free_index)
+                     size_t my_idx,
+                    //  KdNode **current_free_block,
+                     size_t *current_last_index)
 {
     if (dataset_start > dataset_end)
         return NULL;
 
-    size_t my_idx = (*current_free_block) - tree_location;
+    // size_t my_idx = (*current_free_block) - tree_location;
     // KdNode *this_node = (*current_free_block)++;
-    KdNode *this_node = &tree_location[(*current_free_index)++];
+    // KdNode *this_node = &tree_location[(*current_last_index)++];
+    KdNode *this_node = tree_location + my_idx;
     this_node->idx = my_idx;
     this_node->axis = (prev_axis + 1) % NDIM;
 
@@ -182,7 +183,7 @@ KdNode *build_kdtree(TYPE *dataset_start, TYPE *dataset_end, // addresses of the
     r_mins[this_node->axis] = pivot[this_node->axis];
 
 #ifdef DEBUG
-    printf("Node %d\n", this_node->idx);
+    printf("Node %ld\n", this_node->idx);
     printf("pivot: %f, axes: %d = operated on: \n", pivot[this_node->axis], this_node->axis);
     // print_node(this_node);
 
@@ -193,14 +194,18 @@ KdNode *build_kdtree(TYPE *dataset_start, TYPE *dataset_end, // addresses of the
 
     if (dataset_start < pivot)
     {
-        this_node->left = build_kdtree(dataset_start, pivot - NDIM, tree_location, this_node->axis, mins, l_maxs, max_idx, current_free_block, current_free_index);
+        size_t l_idx = ++(* current_last_index);
+        // this_node->left = build_kdtree(dataset_start, pivot - NDIM, tree_location, this_node->axis, mins, l_maxs, l_idx, current_free_block, current_last_index);
+        this_node->left = build_kdtree(dataset_start, pivot - NDIM, tree_location, this_node->axis, mins, l_maxs, l_idx, current_last_index);
     }
     else
         this_node->left = NULL;
 
     if (pivot < dataset_end)
     {
-        this_node->right = build_kdtree(pivot + NDIM, dataset_end, tree_location, this_node->axis, r_mins, maxs, max_idx, current_free_block, current_free_index);
+        size_t r_idx = ++(* current_last_index);
+        // this_node->right = build_kdtree(pivot + NDIM, dataset_end, tree_location, this_node->axis, r_mins, maxs, r_idx, current_free_block, current_last_index);
+        this_node->right = build_kdtree(pivot + NDIM, dataset_end, tree_location, this_node->axis, r_mins, maxs, r_idx, current_last_index);
     }
     else
         this_node->right = NULL;
@@ -252,9 +257,11 @@ int main()
     KdNode *free_block = my_tree;
     // KdNode *my_tree = build_kdtree(dataset, dataset + NDIM,
     //              my_tree, -1, mins, maxs, dataset_size, &free_block);
-    size_t current_free_index = 0;
+    size_t current_last_index = 0;
+    size_t starting_idx = 0;
     build_kdtree(dataset, dataset + (dataset_size - 1) * NDIM,
-                 my_tree, -1, mins, maxs, dataset_size, &free_block, &current_free_index);
+                 my_tree, -1, mins, maxs, starting_idx, &current_last_index);
+                //  my_tree, -1, mins, maxs, starting_idx, &free_block, &current_last_index);
     free_block = NULL;
 #ifdef DEBUG
     printf("TREE CREATED \n");
