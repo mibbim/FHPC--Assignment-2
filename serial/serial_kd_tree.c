@@ -225,8 +225,7 @@ maybe the index should be shifted of an int do that root has index 1 and leaves 
 
     if (dataset_start < pivot)
     {
-        size_t l_idx = ++(*current_last_index);
-        this_node->left_idx = l_idx;
+        this_node->left_idx = ++(*current_last_index);;
         // this_node->left =
         build_kdtree(dataset_start, pivot - NDIM, tree_location, this_node->axis, mins, l_maxs, this_node->left_idx, current_last_index);
     }
@@ -236,8 +235,7 @@ maybe the index should be shifted of an int do that root has index 1 and leaves 
 
     if (pivot < dataset_end)
     {
-        size_t r_idx = ++(*current_last_index);
-        this_node->right_idx = r_idx;
+        this_node->right_idx = ++(*current_last_index);
         // this_node->right =
         build_kdtree(pivot + NDIM, dataset_end, tree_location, this_node->axis, r_mins, maxs, this_node->right_idx, current_last_index);
     }
