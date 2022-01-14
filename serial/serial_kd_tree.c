@@ -150,15 +150,11 @@ KdNode *build_kdtree(TYPE *dataset_start, TYPE *dataset_end, // addresses of the
                      int prev_axis,                          // axis uset for the partitioning at the previous branch
                      TYPE *mins, TYPE *maxs,                 // vectors of extreem values in the curren branch along each axes
                      size_t my_idx,
-                    //  KdNode **current_free_block,
                      size_t *current_last_index)
 {
     if (dataset_start > dataset_end)
         return NULL;
 
-    // size_t my_idx = (*current_free_block) - tree_location;
-    // KdNode *this_node = (*current_free_block)++;
-    // KdNode *this_node = &tree_location[(*current_last_index)++];
     KdNode *this_node = tree_location + my_idx;
     this_node->idx = my_idx;
     this_node->axis = (prev_axis + 1) % NDIM;
@@ -195,7 +191,6 @@ KdNode *build_kdtree(TYPE *dataset_start, TYPE *dataset_end, // addresses of the
     if (dataset_start < pivot)
     {
         size_t l_idx = ++(* current_last_index);
-        // this_node->left = build_kdtree(dataset_start, pivot - NDIM, tree_location, this_node->axis, mins, l_maxs, l_idx, current_free_block, current_last_index);
         this_node->left = build_kdtree(dataset_start, pivot - NDIM, tree_location, this_node->axis, mins, l_maxs, l_idx, current_last_index);
     }
     else
@@ -204,7 +199,6 @@ KdNode *build_kdtree(TYPE *dataset_start, TYPE *dataset_end, // addresses of the
     if (pivot < dataset_end)
     {
         size_t r_idx = ++(* current_last_index);
-        // this_node->right = build_kdtree(pivot + NDIM, dataset_end, tree_location, this_node->axis, r_mins, maxs, r_idx, current_free_block, current_last_index);
         this_node->right = build_kdtree(pivot + NDIM, dataset_end, tree_location, this_node->axis, r_mins, maxs, r_idx, current_last_index);
     }
     else
