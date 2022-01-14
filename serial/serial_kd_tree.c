@@ -26,11 +26,11 @@ void *OOM_GUARD(void *p)
 
 typedef struct KdNode
 {
-    int axis;                    // axis of the split
-    size_t idx;                  // index in the array
-    struct KdNode *left, *right; // children
+    int axis;   // axis of the split
+    size_t idx; // index in the array
+    // struct KdNode *left, *right; // children
     size_t left_idx, right_idx;
-    TYPE value[NDIM];            // value stored in the node and splitting value
+    TYPE value[NDIM]; // value stored in the node and splitting value
 } KdNode;
 
 void print_dataset(TYPE *dataset, size_t dataset_size, int ndim)
@@ -65,19 +65,19 @@ void print_node(KdNode *node)
     printf("\tnode with index %ld at location %u\n", node->idx, node);
     printf("\t value: ");
     print_k_point(node->value);
-    printf("\tAxis: %d \n\tLeft: %u, Right: %u \n\n", node->axis, node->left, node->right);
+    printf("\tAxis: %d \n\tLeft: %ld, Right: %ld \n\n", node->axis, node->left_idx, node->right_idx);
     printf("------------------------\n\n");
     fflush(stdout);
 }
 
-void print_x_dfs(KdNode *head)
-/* Utility function */
+void recursive_print(KdNode *root, size_t index)
 {
-    if (head != NULL)
+    if (index != 0)
     {
-        print_node(head);
-        print_x_dfs(head->left);
-        print_x_dfs(head->right);
+        KdNode node = root[index];
+        print_node(root + index);
+        recursive_print(root, node.left_idx);
+        recursive_print(root, node.right_idx);
     }
     else
     {
@@ -85,15 +85,45 @@ void print_x_dfs(KdNode *head)
     }
 }
 
-void treeprint(KdNode *root, int level)
+void print_x_dfs(KdNode *root)
+/* Utility function */
 {
-    if (root == NULL)
+    print_node(root);
+    KdNode node = root[0];
+    recursive_print(root, node.left_idx);
+    recursive_print(root, node.right_idx);
+
+    // if (root != NULL)
+    // {
+
+    //     print_x_dfs(root->left);
+    //     print_x_dfs(root->right);
+    // }
+}
+
+
+
+
+void recursive_treeprint(KdNode *root, size_t idx, int level)
+{
+    if (idx == 0)
         return;
     for (int i = 0; i < level; i++)
         printf(i == level - 1 ? " |+|" : "  ");
-    print_k_point(root->value);
-    treeprint(root->left, level + 1);
-    treeprint(root->right, level + 1);
+    KdNode node = root[idx];
+    print_k_point(node.value);
+    recursive_treeprint(root, node.left_idx, level + 1);
+    recursive_treeprint(root, node.right_idx, level + 1);
+}
+void treeprint(KdNode *root, int level){
+    for (int i = 0; i < level; i++)
+        printf(i == level - 1 ? " |+|" : "  ");
+
+    KdNode node = root[0];
+
+    recursive_treeprint(root, node.left_idx, level + 1);
+    recursive_treeprint(root, node.right_idx, level + 1);
+
 }
 
 void swap_k(TYPE *a, TYPE *b)
@@ -152,9 +182,13 @@ KdNode *build_kdtree(TYPE *dataset_start, TYPE *dataset_end, // addresses of the
                      TYPE *mins, TYPE *maxs,                 // vectors of extreem values in the curren branch along each axes
                      size_t my_idx,
                      size_t *current_last_index)
+/*
+Note, the implementation is not ideal, the leaves point to the root
+maybe the index should be shifted of an int do that root has index 1 and leaves have childs 0;
+*/
 {
     if (dataset_start > dataset_end)
-        return NULL;
+        return 0;
 
     KdNode *this_node = tree_location + my_idx;
     this_node->idx = my_idx;
@@ -169,7 +203,7 @@ KdNode *build_kdtree(TYPE *dataset_start, TYPE *dataset_end, // addresses of the
     TYPE mean = 0.5 * (mins[this_node->axis] + maxs[this_node->axis]);
 #ifdef DEBUG
     if (my_idx == 3)
-        printf("");
+        printf(" ");
 #endif
 
     TYPE *pivot = partition_k(dataset_start, dataset_end, mean, this_node->axis);
@@ -191,21 +225,25 @@ KdNode *build_kdtree(TYPE *dataset_start, TYPE *dataset_end, // addresses of the
 
     if (dataset_start < pivot)
     {
-        size_t l_idx = ++(* current_last_index);
+        size_t l_idx = ++(*current_last_index);
         this_node->left_idx = l_idx;
-        this_node->left = build_kdtree(dataset_start, pivot - NDIM, tree_location, this_node->axis, mins, l_maxs, l_idx, current_last_index);
+        // this_node->left =
+        build_kdtree(dataset_start, pivot - NDIM, tree_location, this_node->axis, mins, l_maxs, this_node->left_idx, current_last_index);
     }
     else
-        this_node->left = NULL;
+        // this_node->left = NULL;
+        this_node->left_idx = 0;
 
     if (pivot < dataset_end)
     {
-        size_t r_idx = ++(* current_last_index);
+        size_t r_idx = ++(*current_last_index);
         this_node->right_idx = r_idx;
-        this_node->right = build_kdtree(pivot + NDIM, dataset_end, tree_location, this_node->axis, r_mins, maxs, r_idx, current_last_index);
+        // this_node->right =
+        build_kdtree(pivot + NDIM, dataset_end, tree_location, this_node->axis, r_mins, maxs, this_node->right_idx, current_last_index);
     }
     else
-        this_node->right = NULL;
+        // this_node->right = NULL;
+        this_node->right_idx = 0;
 
     return this_node;
 }
