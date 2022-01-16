@@ -321,7 +321,7 @@ int main(int argc, char **argv)
     printf("\nproc: %d, allocated array", myid);
     fflush(stdout);
 #endif
-    MPI_Recv(dataset_start, data_count, MPI_TYPE, master, level * 100, MPI_COMM_WORLD, &dataset_status);
+    MPI_Recv(dataset_start, data_count, MPI_TYPE, myid - reciever_offset, level * 100, MPI_COMM_WORLD, &dataset_status);
 #ifdef DEBUG
     printf("\nproc: %d, recieved data", myid);
     print_dataset(dataset_start, data_count / NDIM, NDIM);
