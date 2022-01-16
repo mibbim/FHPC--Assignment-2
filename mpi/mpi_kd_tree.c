@@ -291,11 +291,11 @@ int main(int argc, char **argv)
 #endif
       // maybe not level
       // MPI_Isend(&r_count, 1, MPI_TYPE, myid + reciever_offset, level * 100, MPI_COMM_WORLD, &request_count); // sending data
-      MPI_Send(&r_count, 1, my_MPI_SIZE_T, myid + 1, 0, MPI_COMM_WORLD); //, &request_count); // sending data
+      MPI_Send(&r_count, 1, my_MPI_SIZE_T, myid + 1, level, MPI_COMM_WORLD); //, &request_count); // sending data
       // MPI_Isend(dataset_start, r_count, MPI_TYPE, myid + reciever_offset, level, MPI_COMM_WORLD, &request);
       printf("\nproc: %d, sended count %ld", myid, r_count);
       fflush(stdout);
-      MPI_Isend(dataset_start, r_count, MPI_TYPE, 1, 1, MPI_COMM_WORLD, &request);
+      MPI_Isend(dataset_start, r_count, MPI_TYPE, 1, level * 100, MPI_COMM_WORLD, &request);
       printf("\nproc: %d, sended data", myid);
       fflush(stdout);
 
@@ -311,7 +311,7 @@ int main(int argc, char **argv)
     int level = 1;
     size_t data_count;
     int reciever_offset = two_pow(level - 1);
-    MPI_Recv(&data_count, 1, my_MPI_SIZE_T, myid - reciever_offset, 0, MPI_COMM_WORLD, &count_status);
+    MPI_Recv(&data_count, 1, my_MPI_SIZE_T, myid - reciever_offset, level, MPI_COMM_WORLD, &count_status);
 #ifdef DEBUG
     printf("\nproc: %d, recieved count %ld", myid, data_count);
     fflush(stdout);
@@ -321,7 +321,7 @@ int main(int argc, char **argv)
     printf("\nproc: %d, allocated array", myid);
     fflush(stdout);
 #endif
-    MPI_Recv(dataset_start, data_count, MPI_TYPE, master, 1, MPI_COMM_WORLD, &dataset_status);
+    MPI_Recv(dataset_start, data_count, MPI_TYPE, master, level * 100, MPI_COMM_WORLD, &dataset_status);
 #ifdef DEBUG
     printf("\nproc: %d, recieved data", myid);
     print_dataset(dataset_start, data_count / NDIM, NDIM);
