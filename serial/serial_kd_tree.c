@@ -101,9 +101,6 @@ void print_x_dfs(KdNode *root)
     // }
 }
 
-
-
-
 void recursive_treeprint(KdNode *root, size_t idx, int level)
 {
     if (idx == 0)
@@ -115,7 +112,9 @@ void recursive_treeprint(KdNode *root, size_t idx, int level)
     recursive_treeprint(root, node.left_idx, level + 1);
     recursive_treeprint(root, node.right_idx, level + 1);
 }
-void treeprint(KdNode *root, int level){
+
+void treeprint(KdNode *root, int level)
+{
     for (int i = 0; i < level; i++)
         printf(i == level - 1 ? " |+|" : "  ");
 
@@ -123,7 +122,6 @@ void treeprint(KdNode *root, int level){
 
     recursive_treeprint(root, node.left_idx, level + 1);
     recursive_treeprint(root, node.right_idx, level + 1);
-
 }
 
 void swap_k(TYPE *a, TYPE *b)
@@ -176,12 +174,12 @@ TYPE *partition_k(TYPE *start, TYPE *end, TYPE pivot_value, int axis)
     return start;
 }
 
-KdNode *build_kdtree(TYPE *dataset_start, TYPE *dataset_end, // addresses of the first and the las point in the dataset
-                     KdNode *tree_location,                  // location of the root of the tree
-                     int prev_axis,                          // axis uset for the partitioning at the previous branch
-                     TYPE *mins, TYPE *maxs,                 // vectors of extreem values in the curren branch along each axes
-                     size_t my_idx,
-                     size_t *current_last_index)
+KdNode *build_kdtree_rec(TYPE *dataset_start, TYPE *dataset_end, // addresses of the first and the las point in the dataset
+                         KdNode *tree_location,                  // location of the root of the tree
+                         int prev_axis,                          // axis uset for the partitioning at the previous branch
+                         TYPE *mins, TYPE *maxs,                 // vectors of extreem values in the curren branch along each axes
+                         size_t my_idx,
+                         size_t *current_last_index)
 /*
 Note, the implementation is not ideal, the leaves point to the root
 maybe the index should be shifted of an int do that root has index 1 and leaves have childs 0;
@@ -225,9 +223,10 @@ maybe the index should be shifted of an int do that root has index 1 and leaves 
 
     if (dataset_start < pivot)
     {
-        this_node->left_idx = ++(*current_last_index);;
+        this_node->left_idx = ++(*current_last_index);
+        ;
         // this_node->left =
-        build_kdtree(dataset_start, pivot - NDIM, tree_location, this_node->axis, mins, l_maxs, this_node->left_idx, current_last_index);
+        build_kdtree_rec(dataset_start, pivot - NDIM, tree_location, this_node->axis, mins, l_maxs, this_node->left_idx, current_last_index);
     }
     else
         // this_node->left = NULL;
@@ -237,13 +236,62 @@ maybe the index should be shifted of an int do that root has index 1 and leaves 
     {
         this_node->right_idx = ++(*current_last_index);
         // this_node->right =
-        build_kdtree(pivot + NDIM, dataset_end, tree_location, this_node->axis, r_mins, maxs, this_node->right_idx, current_last_index);
+        build_kdtree_rec(pivot + NDIM, dataset_end, tree_location, this_node->axis, r_mins, maxs, this_node->right_idx, current_last_index);
     }
     else
         // this_node->right = NULL;
         this_node->right_idx = 0;
 
     return this_node;
+}
+
+// KdNode *build_tree(TYPE *dataset_start, TYPE *dataset_end,
+//                    TYPE *mins, TYPE *maxs)
+// {
+//     // Interface for the recursive function
+//     size_t data_count = dataset_end - dataset_start;
+//     size_t node_count = data_count / NDIM;
+//     KdNode *my_tree = (KdNode *)malloc(data_count * sizeof(KdNode));
+//     size_t current_last_index = 0;
+//     size_t starting_idx = 0;
+
+//     build_kdtree_rec(dataset_start, dataset_end,
+//                      my_tree, -1, mins, maxs, starting_idx, &current_last_index);
+
+// #ifdef DEBUG
+//     treeprint(my_tree, 0);
+// #endif
+
+//     return my_tree;
+// }
+
+
+KdNode *build_tree(TYPE *dataset_start, TYPE *dataset_end,
+                   TYPE *mins, TYPE *maxs, int prev_axis)
+{
+  // Interface for the recursive function
+  size_t data_count = dataset_end - dataset_start;
+  size_t node_count = data_count / NDIM;
+  KdNode *my_tree = (KdNode *)malloc(data_count * sizeof(KdNode));
+  size_t current_last_index = 0;
+  size_t starting_idx = 0;
+
+#ifdef DEBUG
+  printf("extreems point of tree:\n");
+  print_k_point(mins);
+  print_k_point(maxs);
+  printf("operating od axis: %d\n ", (prev_axis + 1) % NDIM);
+  fflush(stdout);
+#endif
+
+  build_kdtree_rec(dataset_start, dataset_end,
+                   my_tree, prev_axis, mins, maxs, starting_idx, &current_last_index);
+
+#ifdef DEBUG
+  treeprint(my_tree, 0);
+#endif
+
+  return my_tree;
 }
 
 // int main(int argc, char **argv)
@@ -284,19 +332,27 @@ int main()
     maxs[0] = dataset_size;
 
     // KdNode *my_tree = (KdNode *)OOM_GUARD(malloc(dataset_size * sizeof(KdNode)));
-    KdNode *my_tree = (KdNode *)malloc(dataset_size * sizeof(KdNode));
+    // KdNode *my_tree = (KdNode *)malloc(dataset_size * sizeof(KdNode));
 
     // build_kdtree_v(dataset, dataset_size, NDIM, -1, my_tree, 0);
-    KdNode *free_block = my_tree;
-    // KdNode *my_tree = build_kdtree(dataset, dataset + NDIM,
+    // KdNode *free_block = my_tree;
+    // KdNode *my_tree = build_kdtree_rec(dataset, dataset + NDIM,
     //              my_tree, -1, mins, maxs, dataset_size, &free_block);
-    size_t current_last_index = 0;
-    size_t starting_idx = 0;
-    build_kdtree(dataset, dataset + (dataset_size - 1) * NDIM,
-                 my_tree, -1, mins, maxs, starting_idx, &current_last_index);
-    free_block = NULL;
+    // size_t current_last_index = 0;
+    // size_t starting_idx = 0;
+    // build_kdtree_rec(dataset, dataset + (dataset_size - 1) * NDIM,
+    //              my_tree, -1, mins, maxs, starting_idx, &current_last_index);
+    // free_block = NULL;
+
+    // KdNode *my_tree = build_kdtree_rec(dataset, dataset + (dataset_size - 1) * NDIM,
+    //                                    mins, maxs, 0);
+
+    KdNode *my_tree = build_tree(dataset, dataset + (dataset_size - 1) * NDIM,
+                                 mins, maxs, 0);
+
 #ifdef DEBUG
-    printf("TREE CREATED \n");
+        printf("TREE CREATED \n");
+        treeprint(my_tree, 0);
     fflush(stdout);
 
     // for (size_t i = 0; i < dataset_size; ++i)
@@ -309,7 +365,7 @@ int main()
     fflush(stdout);
 #endif
 
-    treeprint(my_tree, 0);
+    // 
 
     free(my_tree);
     return 0;
