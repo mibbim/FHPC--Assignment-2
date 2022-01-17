@@ -39,13 +39,43 @@ void *OOM_GUARD(void *p)
 
 #define NDIM 2
 
+#define MASTER 0
+
 typedef struct KdNode
 {
   int axis;   // axis of the split
   size_t idx; // index in the array
-  size_t left_idx, right_idx;
+  size_t left_idx;
+  size_t right_idx;
   TYPE value[NDIM]; // value stored in the node and splitting value
 } KdNode;
+
+void create_mpi_kdNode(MPI_Datatype *MpiKdNode)
+{
+  int node_members_num = 5;
+  MPI_Aint displacements[node_members_num];
+  int lenghts[5] = {1, 1, 1, 1, NDIM};
+  KdNode dummy_node;
+  MPI_Aint base_address;
+
+  MPI_Get_address(&dummy_node, &base_address);
+  MPI_Get_address(&dummy_node.axis, &displacements[0]);
+  MPI_Get_address(&dummy_node.idx, &displacements[1]);
+  MPI_Get_address(&dummy_node.left_idx, &displacements[2]);
+  MPI_Get_address(&dummy_node.right_idx, &displacements[3]);
+  MPI_Get_address(&dummy_node.value, &displacements[4]);
+
+  for (int i = 0; i < node_members_num; ++i)
+    displacements[i] = MPI_Aint_diff(displacements[i], base_address);
+
+  MPI_Datatype types[5] = {MPI_INT, my_MPI_SIZE_T, my_MPI_SIZE_T, my_MPI_SIZE_T, MPI_TYPE};
+
+  MPI_Type_create_struct(node_members_num, lenghts, displacements, types, MpiKdNode);
+
+  // return MpiKdNode;
+}
+
+MPI_Datatype MpiKdNode;
 
 void print_dataset(TYPE *dataset, size_t dataset_size, int ndim)
 /* Utility fuction */
@@ -102,6 +132,7 @@ void treeprint(KdNode *root, int level)
     printf(i == level - 1 ? " |+|" : "  ");
 
   KdNode node = root[0];
+  print_k_point(node.value);
 
   recursive_treeprint(root, node.left_idx, level + 1);
   recursive_treeprint(root, node.right_idx, level + 1);
@@ -159,19 +190,19 @@ TYPE *partition_k(TYPE *start, TYPE *end, TYPE pivot_value, int axis)
   return start;
 }
 
-KdNode *build_kdtree_rec(TYPE *dataset_start, TYPE *dataset_end, // addresses of the first and the las point in the dataset
-                         KdNode *tree_location,                  // location of the root of the tree
-                         int prev_axis,                          // axis uset for the partitioning at the previous branch
-                         TYPE *mins, TYPE *maxs,                 // vectors of extreem values in the curren branch along each axes
-                         size_t my_idx,
-                         size_t *current_last_index)
+void build_kdtree_rec(TYPE *dataset_start, TYPE *dataset_end, // addresses of the first and the las point in the dataset
+                      KdNode *tree_location,                  // location of the root of the tree
+                      int prev_axis,                          // axis uset for the partitioning at the previous branch
+                      TYPE *mins, TYPE *maxs,                 // vectors of extreem values in the curren branch along each axes
+                      size_t my_idx,
+                      size_t *current_last_index)
 /*
 Note, the implementation is not ideal, the leaves point to the root
 maybe the index should be shifted of an int do that root has index 1 and leaves have childs 0;
 */
 {
   if (dataset_start > dataset_end)
-    return 0;
+    return;
 
   KdNode *this_node = tree_location + my_idx;
   this_node->idx = my_idx;
@@ -216,16 +247,16 @@ maybe the index should be shifted of an int do that root has index 1 and leaves 
   else
     this_node->right_idx = 0;
 
-  return this_node;
+  return;
 }
 
 KdNode *build_tree(TYPE *dataset_start, TYPE *dataset_end,
                    TYPE *mins, TYPE *maxs, int prev_axis)
 {
   // Interface for the recursive function
-  size_t data_count = dataset_end - dataset_start;
+  size_t data_count = dataset_end - dataset_start + NDIM;
   size_t node_count = data_count / NDIM;
-  KdNode *my_tree = (KdNode *)malloc(data_count * sizeof(KdNode));
+  KdNode *my_tree = (KdNode *)malloc(node_count * sizeof(KdNode));
   size_t current_last_index = 0;
   size_t starting_idx = 0;
 
@@ -241,7 +272,7 @@ KdNode *build_tree(TYPE *dataset_start, TYPE *dataset_end,
                    my_tree, prev_axis, mins, maxs, starting_idx, &current_last_index);
 
 #ifdef DEBUG
-  treeprint(my_tree, 0);
+  // treeprint(my_tree, 0);
 #endif
 
   return my_tree;
@@ -274,11 +305,45 @@ int two_pow(int exponent)
   return (1 << exponent);
 }
 
+// void build_mpi_tree(TYPE *dataset_start, TYPE *dataset_end,
+//                     TYPE *mins, TYPE *maxs,
+//                     int prev_axis,
+//                     int level, int myid, int max_level)
+// {
+//   if (dataset_start > dataset_end)
+//     return;
+
+//   size_t data_count = (dataset_end - dataset_start + NDIM);
+//   size_t tree_size = data_count / NDIM;
+
+//   if (level == max_level)
+//   {
+//     int lvl_offset = two_pow(level - 1);
+
+//     KdNode *local_tree = malloc(tree_size * sizeof(KdNode));
+//     build_kdtree_rec(dataset_start, dataset_end, local_tree, prev_axis, mins, maxs, 0, 0);
+//     // update indexes
+//     // send the tree to ancestors
+//     return;
+//   }
+
+//   int recv_offset = two_pow(level - 1);
+// }
+
+void add_offset(KdNode *tree, size_t tree_size, size_t offset)
+{
+  for (size_t i = 0; i < tree_size; ++i)
+  {
+    tree[i].idx += offset;
+  }
+};
+
 int main(int argc, char **argv)
 {
   int myid, numprocs;
-  int master = 0;
   MPI_Init(&argc, &argv);
+
+  create_mpi_kdNode(&MpiKdNode);
   MPI_Comm_size(MPI_COMM_WORLD, &numprocs);
   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
@@ -287,21 +352,28 @@ int main(int argc, char **argv)
   TYPE *dataset_start;
   TYPE *dataset_end;
 
-  int tag_count = 0;
+  int tag_param = 0;
   int tag_mins = 100;
   int tag_maxs = 200;
   int tag_data = 300;
+  int tag_tree = 400;
 
   TYPE mins[NDIM];
   TYPE maxs[NDIM];
 
-  if (myid == master)
+  if (myid == MASTER)
   {
     srand48(12345);
     dataset_start = create_dataset(dataset_size);
     dataset_end = dataset_start + (dataset_size * NDIM) - NDIM;
     KdNode *master_tree = (KdNode *)malloc(dataset_size * sizeof(KdNode));
+
     local_tree = master_tree;
+#ifdef DEBUG
+    printf("master tree %u\n", local_tree);
+    printf("local tree %u\n", master_tree);
+    fflush(stdout);
+#endif
   }
 
   // contiguous for message passing
@@ -318,14 +390,17 @@ int main(int argc, char **argv)
   TYPE l_maxs[NDIM];
   TYPE r_mins[NDIM];
 
-  MPI_Status count_status;
+  size_t params[2]; // count, idx_offset
+
+  MPI_Status param_status;
   MPI_Status dataset_status;
+  MPI_Status tree_status;
   MPI_Request request_count;
   MPI_Request request;
   MPI_Request request_mins;
   MPI_Request request_maxs;
 
-  if (myid == master)
+  if (myid == MASTER)
   {
     // build_tree(dataset_start, dataset_end, mins, maxs);
 
@@ -333,9 +408,15 @@ int main(int argc, char **argv)
     int axis = 0;
     KdNode *this_node = local_tree;
     this_node->axis = axis;
+    this_node->idx = 0;
+
+    this_node->left_idx = 1;
+    this_node->right_idx = 0;
 
     TYPE mean = 0.5 * (mins[this_node->axis] + maxs[this_node->axis]);
     TYPE *pivot = partition_k(dataset_start, dataset_end, mean, this_node->axis);
+
+    memcpy(this_node->value, pivot, NDIM * sizeof(TYPE));
 
     memcpy(l_maxs, maxs, NDIM * sizeof(TYPE));
     memcpy(r_mins, mins, NDIM * sizeof(TYPE));
@@ -346,74 +427,69 @@ int main(int argc, char **argv)
     ++level;
     int reciever_offset = two_pow(level - 1);
 
-    if (pivot < dataset_end)
-    {
-      size_t r_count = dataset_end - pivot;
+    size_t r_count = dataset_end - pivot;
+    size_t l_count = pivot - dataset_start;
 
-      // maybe not level
-      MPI_Isend(&r_count, 1, my_MPI_SIZE_T, myid + 1, level + tag_count, MPI_COMM_WORLD, &request_count); // sending data
-#ifdef DEBUG
-      printf("\nproc: %d, sended count %ld", myid, r_count);
-      fflush(stdout);
-#endif
+    if (pivot < dataset_end)
+    { // sending data
+      size_t r_idx_offset = l_count;
+      params[0] = r_count;
+      params[1] = r_idx_offset;
+
+      MPI_Isend(&params, 2, my_MPI_SIZE_T, myid + 1, level + tag_param, MPI_COMM_WORLD, &request_count);
       MPI_Isend(&r_mins, NDIM, MPI_TYPE, myid + 1, level + tag_mins, MPI_COMM_WORLD, &request_mins);
       MPI_Isend(&maxs, NDIM, MPI_TYPE, myid + 1, level + tag_maxs, MPI_COMM_WORLD, &request_maxs);
       MPI_Isend(pivot + NDIM, r_count, MPI_TYPE, 1, level + tag_data, MPI_COMM_WORLD, &request);
-
-#ifdef DEBUG
-      printf("\nproc: %d, sended data", myid);
-      fflush(stdout);
-#endif
-      // work_on first_half(++level )
-#ifdef DEBUG
-      printf(" ");
-#endif
     }
+
     if (dataset_start < pivot)
     {
-      size_t l_count = pivot - dataset_start;
-      local_tree = build_tree(dataset_start, dataset_start + l_count - NDIM, mins, l_maxs, 0);
+#ifdef DEBUG
+      printf("\n****************SENTINEL****************\n");
+      printf("local tree %u\n", local_tree);
+      fflush(stdout);
+#endif
+      // build_tree(dataset_start, pivot - NDIM, mins, l_maxs, 0);
+      // build_kdtree_rec(dataset_start, pivot - NDIM, local_tree, level - 1, mins, l_maxs, 0, 0);
+      size_t last_index = 1; 
+      build_kdtree_rec(dataset_start, pivot - NDIM, local_tree, this_node->axis, mins, l_maxs, this_node->left_idx, &last_index);
+#ifdef DEBUG
+      printf("\n****************SENTINEL****************\n");
+      fflush(stdout);
+#endif
+
+      treeprint(local_tree, 0);
     }
+
+    if (pivot < dataset_end)
+    {
+      MPI_Recv(local_tree + r_count + NDIM, r_count, MpiKdNode, myid + 1, level + tag_tree, MPI_COMM_WORLD, &tree_status);
+    }
+    treeprint(local_tree, 0);
   }
 
   if (myid == 1)
   {
     int level = 1;
-    size_t data_count;
     int reciever_offset = two_pow(level - 1);
+    MPI_Recv(&params, 2, my_MPI_SIZE_T, myid - reciever_offset, level + tag_param, MPI_COMM_WORLD, &param_status);
+    size_t data_count = params[0];
+    size_t tree_size = data_count / NDIM;
+    size_t idx_offset = params[1];
 
-    MPI_Recv(&data_count, 1, my_MPI_SIZE_T, myid - reciever_offset, level + tag_count, MPI_COMM_WORLD, &count_status);
-#ifdef DEBUG
-    printf("\nproc: %d, recieved count %ld", myid, data_count);
-    fflush(stdout);
-#endif
     dataset_start = (TYPE *)OOM_GUARD(malloc(data_count * sizeof(TYPE)));
-#ifdef DEBUG
-    printf("\nproc: %d, allocated array", myid);
-    fflush(stdout);
-#endif
-    MPI_Irecv(&mins, NDIM, MPI_TYPE, myid - 1, level + tag_mins, MPI_COMM_WORLD, &request_mins);
-    MPI_Irecv(&maxs, NDIM, MPI_TYPE, myid - 1, level + tag_maxs, MPI_COMM_WORLD, &request_mins);
+    MPI_Irecv(&mins, NDIM, MPI_TYPE, myid - reciever_offset, level + tag_mins, MPI_COMM_WORLD, &request_mins);
+    MPI_Irecv(&maxs, NDIM, MPI_TYPE, myid - reciever_offset, level + tag_maxs, MPI_COMM_WORLD, &request_mins);
 
     MPI_Recv(dataset_start, data_count, MPI_TYPE, myid - reciever_offset, level + tag_data, MPI_COMM_WORLD, &dataset_status);
-#ifdef DEBUG
-    printf("\nproc: %d, recieved data", myid);
-    print_dataset(dataset_start, data_count / NDIM, NDIM);
-    fflush(stdout);
-    printf(" ");
-#endif
-    build_tree(dataset_start, dataset_start + data_count - NDIM, mins, maxs, 2);
+    // build_tree(dataset_start, dataset_start + data_count - NDIM, mins, maxs, 2);
+    local_tree = malloc(tree_size * sizeof(KdNode));
+    build_kdtree_rec(dataset_start, dataset_end, local_tree,
+                     level - 1, mins, maxs, 0, 0);
 
-#ifdef DEBUG
-    // printf("TREE CREATED \n");
-    fflush(stdout);
-    // treeprint(local_tree, 0);
-    fflush(stdout);
-#endif
+    add_offset(local_tree, tree_size, idx_offset);
+    MPI_Send(local_tree, tree_size, MpiKdNode, myid - reciever_offset, level + tag_tree, MPI_COMM_WORLD);
   }
-
-  size_t current_last_index = 0;
-  size_t starting_idx = 0;
 
   MPI_Finalize();
 
