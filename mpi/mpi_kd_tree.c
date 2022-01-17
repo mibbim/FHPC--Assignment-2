@@ -84,6 +84,30 @@ void print_node(KdNode *node)
   fflush(stdout);
 }
 
+void recursive_treeprint(KdNode *root, size_t idx, int level)
+{
+  if (idx == 0)
+    return;
+  for (int i = 0; i < level; i++)
+    printf(i == level - 1 ? " |+|" : "  ");
+  KdNode node = root[idx];
+  print_k_point(node.value);
+  recursive_treeprint(root, node.left_idx, level + 1);
+  recursive_treeprint(root, node.right_idx, level + 1);
+}
+
+void treeprint(KdNode *root, int level)
+{
+  for (int i = 0; i < level; i++)
+    printf(i == level - 1 ? " |+|" : "  ");
+
+  KdNode node = root[0];
+
+  recursive_treeprint(root, node.left_idx, level + 1);
+  recursive_treeprint(root, node.right_idx, level + 1);
+  fflush(stdout);
+}
+
 void swap_k(TYPE *a, TYPE *b)
 {
   TYPE temp[NDIM];
@@ -126,17 +150,21 @@ TYPE *partition_k(TYPE *start, TYPE *end, TYPE pivot_value, int axis)
     r -= step;
   }
 
-  if (r[axis] != max_l[axis])
-    swap_k(r, max_l);
-  return r;
+  if (r > start)
+  {
+    if (r[axis] != max_l[axis])
+      swap_k(r, max_l);
+    return r;
+  }
+  return start;
 }
 
-KdNode *build_kdtree(TYPE *dataset_start, TYPE *dataset_end, // addresses of the first and the las point in the dataset
-                     KdNode *tree_location,                  // location of the root of the tree
-                     int prev_axis,                          // axis uset for the partitioning at the previous branch
-                     TYPE *mins, TYPE *maxs,                 // vectors of extreem values in the curren branch along each axes
-                     size_t my_idx,
-                     size_t *current_last_index)
+KdNode *build_kdtree_rec(TYPE *dataset_start, TYPE *dataset_end, // addresses of the first and the las point in the dataset
+                         KdNode *tree_location,                  // location of the root of the tree
+                         int prev_axis,                          // axis uset for the partitioning at the previous branch
+                         TYPE *mins, TYPE *maxs,                 // vectors of extreem values in the curren branch along each axes
+                         size_t my_idx,
+                         size_t *current_last_index)
 /*
 Note, the implementation is not ideal, the leaves point to the root
 maybe the index should be shifted of an int do that root has index 1 and leaves have childs 0;
@@ -164,10 +192,10 @@ maybe the index should be shifted of an int do that root has index 1 and leaves 
   r_mins[this_node->axis] = pivot[this_node->axis];
 
 #ifdef DEBUG
-  printf("Node %ld\n", this_node->idx);
-  printf("pivot: %f, axes: %d = operated on: \n", pivot[this_node->axis], this_node->axis);
+  // printf("Node %ld\n", this_node->idx);
+  // printf("pivot: %f, axes: %d = operated on: \n", pivot[this_node->axis], this_node->axis);
 
-  print_dataset(dataset_start, (dataset_end - dataset_start + NDIM) / NDIM, NDIM);
+  // print_dataset(dataset_start, (dataset_end - dataset_start + NDIM) / NDIM, NDIM);
   TYPE *L_END = pivot - NDIM;
   TYPE *R_STA = pivot + NDIM;
 #endif
@@ -175,7 +203,7 @@ maybe the index should be shifted of an int do that root has index 1 and leaves 
   if (dataset_start < pivot)
   {
     this_node->left_idx = ++(*current_last_index);
-    build_kdtree(dataset_start, pivot - NDIM, tree_location, this_node->axis, mins, l_maxs, this_node->left_idx, current_last_index);
+    build_kdtree_rec(dataset_start, pivot - NDIM, tree_location, this_node->axis, mins, l_maxs, this_node->left_idx, current_last_index);
   }
   else
     this_node->left_idx = 0;
@@ -183,7 +211,7 @@ maybe the index should be shifted of an int do that root has index 1 and leaves 
   if (pivot < dataset_end)
   {
     this_node->right_idx = ++(*current_last_index);
-    build_kdtree(pivot + NDIM, dataset_end, tree_location, this_node->axis, r_mins, maxs, this_node->right_idx, current_last_index);
+    build_kdtree_rec(pivot + NDIM, dataset_end, tree_location, this_node->axis, r_mins, maxs, this_node->right_idx, current_last_index);
   }
   else
     this_node->right_idx = 0;
@@ -191,6 +219,33 @@ maybe the index should be shifted of an int do that root has index 1 and leaves 
   return this_node;
 }
 
+KdNode *build_tree(TYPE *dataset_start, TYPE *dataset_end,
+                   TYPE *mins, TYPE *maxs, int prev_axis)
+{
+  // Interface for the recursive function
+  size_t data_count = dataset_end - dataset_start;
+  size_t node_count = data_count / NDIM;
+  KdNode *my_tree = (KdNode *)malloc(data_count * sizeof(KdNode));
+  size_t current_last_index = 0;
+  size_t starting_idx = 0;
+
+#ifdef DEBUG
+  printf("extreems point of tree:\n");
+  print_k_point(mins);
+  print_k_point(maxs);
+  printf("operating od axis: %d\n ", (prev_axis + 1) % NDIM);
+  fflush(stdout);
+#endif
+
+  build_kdtree_rec(dataset_start, dataset_end,
+                   my_tree, prev_axis, mins, maxs, starting_idx, &current_last_index);
+
+#ifdef DEBUG
+  treeprint(my_tree, 0);
+#endif
+
+  return my_tree;
+}
 TYPE *create_dataset(size_t dataset_size)
 {
   TYPE *dataset = (TYPE *)OOM_GUARD(malloc(dataset_size * NDIM * sizeof(TYPE))); // plain array
@@ -232,6 +287,14 @@ int main(int argc, char **argv)
   TYPE *dataset_start;
   TYPE *dataset_end;
 
+  int tag_count = 0;
+  int tag_mins = 100;
+  int tag_maxs = 200;
+  int tag_data = 300;
+
+  TYPE mins[NDIM];
+  TYPE maxs[NDIM];
+
   if (myid == master)
   {
     srand48(12345);
@@ -241,8 +304,10 @@ int main(int argc, char **argv)
     local_tree = master_tree;
   }
 
-  TYPE mins[NDIM];
-  TYPE maxs[NDIM];
+  // contiguous for message passing
+  // TYPE extreems[2 * NDIM];
+  // TYPE *mins = extreems;
+  // TYPE *maxs = extreems + NDIM;
 
   for (int i = 0; i < NDIM; ++i)
   {
@@ -257,9 +322,12 @@ int main(int argc, char **argv)
   MPI_Status dataset_status;
   MPI_Request request_count;
   MPI_Request request;
+  MPI_Request request_mins;
+  MPI_Request request_maxs;
 
   if (myid == master)
   {
+    // build_tree(dataset_start, dataset_end, mins, maxs);
 
     int level = 0;
     int axis = 0;
@@ -278,31 +346,33 @@ int main(int argc, char **argv)
     ++level;
     int reciever_offset = two_pow(level - 1);
 
-    MPI_Request request_count;
-    MPI_Request request;
-
-    if (dataset_start < pivot)
+    if (pivot < dataset_end)
     {
-      size_t r_count = pivot - dataset_start;
-#ifdef DEBUG
-      if (myid + reciever_offset != 1)
-        printf(" ");
+      size_t r_count = dataset_end - pivot;
 
-#endif
       // maybe not level
-      // MPI_Isend(&r_count, 1, MPI_TYPE, myid + reciever_offset, level * 100, MPI_COMM_WORLD, &request_count); // sending data
-      MPI_Send(&r_count, 1, my_MPI_SIZE_T, myid + 1, level, MPI_COMM_WORLD); //, &request_count); // sending data
-      // MPI_Isend(dataset_start, r_count, MPI_TYPE, myid + reciever_offset, level, MPI_COMM_WORLD, &request);
+      MPI_Isend(&r_count, 1, my_MPI_SIZE_T, myid + 1, level + tag_count, MPI_COMM_WORLD, &request_count); // sending data
+#ifdef DEBUG
       printf("\nproc: %d, sended count %ld", myid, r_count);
       fflush(stdout);
-      MPI_Isend(dataset_start, r_count, MPI_TYPE, 1, level * 100, MPI_COMM_WORLD, &request);
+#endif
+      MPI_Isend(&r_mins, NDIM, MPI_TYPE, myid + 1, level + tag_mins, MPI_COMM_WORLD, &request_mins);
+      MPI_Isend(&maxs, NDIM, MPI_TYPE, myid + 1, level + tag_maxs, MPI_COMM_WORLD, &request_maxs);
+      MPI_Isend(pivot + NDIM, r_count, MPI_TYPE, 1, level + tag_data, MPI_COMM_WORLD, &request);
+
+#ifdef DEBUG
       printf("\nproc: %d, sended data", myid);
       fflush(stdout);
-
+#endif
       // work_on first_half(++level )
 #ifdef DEBUG
       printf(" ");
 #endif
+    }
+    if (dataset_start < pivot)
+    {
+      size_t l_count = pivot - dataset_start;
+      local_tree = build_tree(dataset_start, dataset_start + l_count - NDIM, mins, l_maxs, 0);
     }
   }
 
@@ -311,7 +381,8 @@ int main(int argc, char **argv)
     int level = 1;
     size_t data_count;
     int reciever_offset = two_pow(level - 1);
-    MPI_Recv(&data_count, 1, my_MPI_SIZE_T, myid - reciever_offset, level, MPI_COMM_WORLD, &count_status);
+
+    MPI_Recv(&data_count, 1, my_MPI_SIZE_T, myid - reciever_offset, level + tag_count, MPI_COMM_WORLD, &count_status);
 #ifdef DEBUG
     printf("\nproc: %d, recieved count %ld", myid, data_count);
     fflush(stdout);
@@ -321,24 +392,29 @@ int main(int argc, char **argv)
     printf("\nproc: %d, allocated array", myid);
     fflush(stdout);
 #endif
-    MPI_Recv(dataset_start, data_count, MPI_TYPE, myid - reciever_offset, level * 100, MPI_COMM_WORLD, &dataset_status);
+    MPI_Irecv(&mins, NDIM, MPI_TYPE, myid - 1, level + tag_mins, MPI_COMM_WORLD, &request_mins);
+    MPI_Irecv(&maxs, NDIM, MPI_TYPE, myid - 1, level + tag_maxs, MPI_COMM_WORLD, &request_mins);
+
+    MPI_Recv(dataset_start, data_count, MPI_TYPE, myid - reciever_offset, level + tag_data, MPI_COMM_WORLD, &dataset_status);
 #ifdef DEBUG
     printf("\nproc: %d, recieved data", myid);
     print_dataset(dataset_start, data_count / NDIM, NDIM);
     fflush(stdout);
     printf(" ");
 #endif
+    build_tree(dataset_start, dataset_start + data_count - NDIM, mins, maxs, 2);
+
+#ifdef DEBUG
+    // printf("TREE CREATED \n");
+    fflush(stdout);
+    // treeprint(local_tree, 0);
+    fflush(stdout);
+#endif
   }
 
   size_t current_last_index = 0;
   size_t starting_idx = 0;
 
-#ifdef DEBUG
-  printf("TREE CREATED \n");
-  fflush(stdout);
-  // treeprint(my_tree, 0);
-  fflush(stdout);
-#endif
   MPI_Finalize();
 
   return 0;
