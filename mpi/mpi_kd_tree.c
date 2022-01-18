@@ -454,14 +454,14 @@ int main(int argc, char **argv)
     if (pivot < dataset_end)
     {
       size_t r_tree_size = r_count / NDIM;
-      KdNode * right_tree = malloc(r_tree_size * sizeof(KdNode));
-      MPI_Recv(right_tree, r_count, MpiKdNode, myid + 1, level + tag_tree, MPI_COMM_WORLD, &tree_status);
-    }
+      KdNode *right_tree = malloc(r_tree_size * sizeof(KdNode));
+      MPI_Recv(right_tree, r_count * sizeof(KdNode), MPI_UNSIGNED_CHAR, myid + 1, level + tag_tree, MPI_COMM_WORLD, &tree_status);
 #ifdef DEBUG
     printf("\n****************SENTINEL0****************\n");
-    treeprint(local_tree + r_count + NDIM, 0);
+    treeprint(right_tree, 0);
     fflush(stdout);
 #endif
+    }
 
     // treeprint(local_tree, 0);
   }
@@ -488,7 +488,7 @@ int main(int argc, char **argv)
     build_kdtree_rec(dataset_start, dataset_end, local_tree, level - 1, mins, maxs, starting_index, &last_index);
 
     // add_offset(local_tree, tree_size, idx_offset);
-    MPI_Send(local_tree, tree_size, MpiKdNode, myid - reciever_offset, level + tag_tree, MPI_COMM_WORLD);
+    MPI_Send(local_tree, tree_size * sizeof(KdNode), MPI_UNSIGNED_CHAR, myid - reciever_offset, level + tag_tree, MPI_COMM_WORLD);
 #ifdef DEBUG
     printf("\n****************SENTINEL1****************\n");
     treeprint(local_tree, 0);
