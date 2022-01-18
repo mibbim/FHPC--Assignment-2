@@ -4,7 +4,8 @@ CCFLAGS = -Wall -Wextra
 CCFLAGS_D = -DDEBUG -Wall -Wextra -g
 
 SRC = mpi_kd_tree.c \
-	master_mpi_test.c
+	master_mpi_test.c \
+	type_mpi_test.c
 
 EXE = $(SRC:.c=.x)
 
