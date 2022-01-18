@@ -255,8 +255,8 @@ KdNode *build_tree(TYPE *dataset_start, TYPE *dataset_end,
 {
   // Interface for the recursive function
   size_t data_count = dataset_end - dataset_start + NDIM;
-  size_t node_count = data_count / NDIM;
-  KdNode *my_tree = (KdNode *)malloc(node_count * sizeof(KdNode));
+  size_t tree_size = data_count / NDIM;
+  KdNode *my_tree = (KdNode *)malloc(tree_size * sizeof(KdNode));
   size_t current_last_index = 0;
   size_t starting_idx = 0;
 
@@ -444,28 +444,26 @@ int main(int argc, char **argv)
 
     if (dataset_start < pivot)
     {
-#ifdef DEBUG
-      printf("\n****************SENTINEL****************\n");
-      printf("local tree %u\n", local_tree);
-      fflush(stdout);
-#endif
       // build_tree(dataset_start, pivot - NDIM, mins, l_maxs, 0);
       // build_kdtree_rec(dataset_start, pivot - NDIM, local_tree, level - 1, mins, l_maxs, 0, 0);
-      size_t last_index = 1; 
+      size_t last_index = 1;
       build_kdtree_rec(dataset_start, pivot - NDIM, local_tree, this_node->axis, mins, l_maxs, this_node->left_idx, &last_index);
-#ifdef DEBUG
-      printf("\n****************SENTINEL****************\n");
-      fflush(stdout);
-#endif
-
       treeprint(local_tree, 0);
     }
 
     if (pivot < dataset_end)
     {
-      MPI_Recv(local_tree + r_count + NDIM, r_count, MpiKdNode, myid + 1, level + tag_tree, MPI_COMM_WORLD, &tree_status);
+      size_t r_tree_size = r_count / NDIM;
+      KdNode * right_tree = malloc(r_tree_size * sizeof(KdNode));
+      MPI_Recv(right_tree, r_count, MpiKdNode, myid + 1, level + tag_tree, MPI_COMM_WORLD, &tree_status);
     }
-    treeprint(local_tree, 0);
+#ifdef DEBUG
+    printf("\n****************SENTINEL0****************\n");
+    treeprint(local_tree + r_count + NDIM, 0);
+    fflush(stdout);
+#endif
+
+    // treeprint(local_tree, 0);
   }
 
   if (myid == 1)
@@ -478,17 +476,24 @@ int main(int argc, char **argv)
     size_t idx_offset = params[1];
 
     dataset_start = (TYPE *)OOM_GUARD(malloc(data_count * sizeof(TYPE)));
+    dataset_end = dataset_start + data_count - NDIM;
     MPI_Irecv(&mins, NDIM, MPI_TYPE, myid - reciever_offset, level + tag_mins, MPI_COMM_WORLD, &request_mins);
     MPI_Irecv(&maxs, NDIM, MPI_TYPE, myid - reciever_offset, level + tag_maxs, MPI_COMM_WORLD, &request_mins);
 
     MPI_Recv(dataset_start, data_count, MPI_TYPE, myid - reciever_offset, level + tag_data, MPI_COMM_WORLD, &dataset_status);
     // build_tree(dataset_start, dataset_start + data_count - NDIM, mins, maxs, 2);
     local_tree = malloc(tree_size * sizeof(KdNode));
-    build_kdtree_rec(dataset_start, dataset_end, local_tree,
-                     level - 1, mins, maxs, 0, 0);
+    size_t last_index = 0;
+    size_t starting_index = 0;
+    build_kdtree_rec(dataset_start, dataset_end, local_tree, level - 1, mins, maxs, starting_index, &last_index);
 
-    add_offset(local_tree, tree_size, idx_offset);
+    // add_offset(local_tree, tree_size, idx_offset);
     MPI_Send(local_tree, tree_size, MpiKdNode, myid - reciever_offset, level + tag_tree, MPI_COMM_WORLD);
+#ifdef DEBUG
+    printf("\n****************SENTINEL1****************\n");
+    treeprint(local_tree, 0);
+    fflush(stdout);
+#endif
   }
 
   MPI_Finalize();
