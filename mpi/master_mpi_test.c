@@ -138,7 +138,6 @@ void treeprint(KdNode *root, int level)
   recursive_treeprint(root, node.right_idx, level + 1);
   fflush(stdout);
 }
-
 void swap_k(TYPE *a, TYPE *b)
 {
   TYPE temp[NDIM];
@@ -223,12 +222,12 @@ maybe the index should be shifted of an int do that root has index 1 and leaves 
   r_mins[this_node->axis] = pivot[this_node->axis];
 
 #ifdef DEBUG
-  // printf("Node %ld\n", this_node->idx);
-  // printf("pivot: %f, axes: %d = operated on: \n", pivot[this_node->axis], this_node->axis);
+  printf("Node %ld\n", this_node->idx);
+  printf("pivot: %f, axes: %d = operated on: \n", pivot[this_node->axis], this_node->axis);
 
-  // print_dataset(dataset_start, (dataset_end - dataset_start + NDIM) / NDIM, NDIM);
-  TYPE *L_END = pivot - NDIM;
-  TYPE *R_STA = pivot + NDIM;
+  print_dataset(dataset_start, (dataset_end - dataset_start + NDIM) / NDIM, NDIM);
+  // TYPE *L_END = pivot - NDIM;
+  // TYPE *R_STA = pivot + NDIM;
 #endif
 
   if (dataset_start < pivot)
@@ -311,8 +310,126 @@ void add_offset(KdNode *tree, size_t tree_size, size_t offset)
   for (size_t i = 0; i < tree_size; ++i)
   {
     tree[i].idx += offset;
+    if (tree[i].right_idx)
+      tree[i].right_idx += offset;
+    if (tree[i].left_idx)
+      tree[i].left_idx += offset;
   }
 };
+
+void build_mpi_tree(TYPE *dataset_start, TYPE *dataset_end,
+                    TYPE *mins, TYPE *maxs, KdNode *local_tree,
+                    int prev_axis, size_t idx_offset,
+                    int level, int myid, int max_level,
+                    size_t *last_used_index)
+{
+  if (dataset_start > dataset_end)
+    return;
+
+  if (level == max_level)
+  {
+    build_kdtree_rec(dataset_start, dataset_end, local_tree, prev_axis, mins, maxs, *last_used_index, last_used_index);
+    printf(" ");
+    return;
+  }
+  size_t data_count = (dataset_end - dataset_start + NDIM);
+  size_t tree_size = data_count / NDIM;
+
+  // {
+  //   int lvl_offset = two_pow(level - 1);
+  //   KdNode *local_tree = malloc(tree_size * sizeof(KdNode));
+  //   size_t last_index = 0;
+  //   size_t starting_index = 0;
+  //   add_offset(local_tree, tree_size, idx_offset);
+  //   MPI_Send(local_tree, tree_size * sizeof(KdNode), MPI_UNSIGNED_CHAR, myid - lvl_offset, level + tag_tree, MPI_COMM_WORLD);
+  //   return;
+  // }
+
+  KdNode *this_node = local_tree + *last_used_index;
+  this_node->axis = (prev_axis + 1) % NDIM;
+  this_node->idx = (*last_used_index);
+
+  TYPE mean = 0.5 * (mins[this_node->axis] + maxs[this_node->axis]);
+  TYPE *pivot = partition_k(dataset_start, dataset_end, mean, this_node->axis);
+
+#ifdef DEBUG
+  printf("Node %ld\n", this_node->idx);
+  printf("pivot: %f, axes: %d = operated on: \n", pivot[this_node->axis], this_node->axis);
+
+  print_dataset(dataset_start, (dataset_end - dataset_start) / NDIM + 1, NDIM);
+  printf("\n \n ");
+#endif
+
+  memcpy(this_node->value, pivot, NDIM * sizeof(TYPE));
+
+  TYPE l_maxs[NDIM];
+  TYPE r_mins[NDIM];
+
+  memcpy(l_maxs, maxs, NDIM * sizeof(TYPE));
+  memcpy(r_mins, mins, NDIM * sizeof(TYPE));
+
+  l_maxs[this_node->axis] = pivot[this_node->axis];
+  r_mins[this_node->axis] = pivot[this_node->axis];
+
+  int recv_offset = two_pow(level - 1);
+  MPI_Request req;
+
+  size_t r_count = dataset_end - pivot;
+  size_t l_count = pivot - dataset_start;
+
+  if (pivot < dataset_end)
+  {
+    // preparing needed parameters
+    size_t r_idx_offset = l_count / NDIM + 1;
+    size_t params[2];
+    params[0] = r_count;
+    params[1] = r_idx_offset;
+    this_node->right_idx = r_idx_offset;
+    // sending data
+    // MPI_Isend(&params, 2, my_MPI_SIZE_T, myid + 1, level + tag_param, MPI_COMM_WORLD, &req);
+    // MPI_Isend(&r_mins, NDIM, MPI_TYPE, myid + 1, level + tag_mins, MPI_COMM_WORLD, &req);
+    // MPI_Isend(&maxs, NDIM, MPI_TYPE, myid + 1, level + tag_maxs, MPI_COMM_WORLD, &req);
+    // MPI_Isend(pivot + NDIM, r_count, MPI_TYPE, 1, level + tag_data, MPI_COMM_WORLD, &req);
+  }
+  else
+    this_node->right_idx = 0;
+
+  if (dataset_start < pivot)
+  {
+    this_node->left_idx = ++(*last_used_index);
+    build_mpi_tree(dataset_start, pivot - NDIM,
+                   mins, l_maxs, local_tree, this_node->axis,
+                   0, level + 1, myid, max_level, last_used_index);
+  }
+
+  size_t r_tree_size = r_count / NDIM;
+  if (pivot < dataset_end)
+  {
+    KdNode *right_tree = local_tree + ++(*last_used_index);
+    size_t last_index_r = 0;
+    build_kdtree_rec(pivot + NDIM, dataset_end,
+                     right_tree, this_node->axis,
+                     r_mins, maxs, 0, &last_index_r);
+
+    add_offset(right_tree, r_tree_size, l_count / NDIM + 1);
+
+    // MPI_Recv(right_tree, r_tree_size * sizeof(KdNode), MPI_UNSIGNED_CHAR,
+    //          myid + recv_offset, level + tag_tree,
+    //          MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+  }
+}
+
+void straight_treeprint(KdNode *root, size_t tree_size)
+{
+  for (size_t i = 0; i < tree_size; ++i)
+  {
+    KdNode n = root[i];
+    printf("node: ");
+    print_k_point(n.value);
+    printf("\t left: %ld, right: %ld ", n.left_idx, n.right_idx);
+    printf("idx: %ld, real idx: %ld\n", n.idx, i);
+  }
+}
 
 int main(int argc, char **argv)
 {
@@ -329,12 +446,7 @@ int main(int argc, char **argv)
     srand48(12345);
     dataset_start = create_dataset(dataset_size);
     dataset_end = dataset_start + (dataset_size * NDIM) - NDIM;
-    KdNode *master_tree = (KdNode *)malloc(dataset_size * sizeof(KdNode));
-    local_tree = master_tree;
-#ifdef DEBUG
-    printf("master tree %u\n", local_tree);
-    fflush(stdout);
-#endif
+    local_tree = (KdNode *)malloc(dataset_size * sizeof(KdNode));
   }
 
   for (int i = 0; i < NDIM; ++i)
@@ -348,51 +460,57 @@ int main(int argc, char **argv)
   TYPE r_mins[NDIM];
 
   size_t params[2]; // count, idx_offset
+  size_t last_used_index = 0;
+  build_mpi_tree(dataset_start, dataset_end,
+                 mins, maxs,
+                 local_tree, -1, 0, 0, 0, 1, &last_used_index);
 
-  {
-    int level = 0;
-    int axis = 0;
-    KdNode *this_node = local_tree;
+  treeprint(local_tree, 0);
+  straight_treeprint(local_tree, dataset_size);
+  //   int level = 0;
+  //   int axis = 0;
+  //   KdNode *this_node = local_tree;
 
-    this_node->axis = axis;
-    this_node->idx = 0;
+  //   this_node->axis = axis;
+  //   this_node->idx = 0;
 
-    this_node->left_idx = 1;
-    this_node->right_idx = 0; // no right child
+  //   this_node->left_idx = 1;
+  //   this_node->right_idx = 0; // no right child
 
-    TYPE mean = 0.5 * (mins[this_node->axis] + maxs[this_node->axis]);
-    TYPE *pivot = partition_k(dataset_start, dataset_end, mean, this_node->axis);
+  //   TYPE mean = 0.5 * (mins[this_node->axis] + maxs[this_node->axis]);
+  //   TYPE *pivot = partition_k(dataset_start, dataset_end, mean, this_node->axis);
 
-    memcpy(this_node->value, pivot, NDIM * sizeof(TYPE));
+  //   memcpy(this_node->value, pivot, NDIM * sizeof(TYPE));
 
-    memcpy(l_maxs, maxs, NDIM * sizeof(TYPE));
-    memcpy(r_mins, mins, NDIM * sizeof(TYPE));
+  //   memcpy(l_maxs, maxs, NDIM * sizeof(TYPE));
+  //   memcpy(r_mins, mins, NDIM * sizeof(TYPE));
 
-    l_maxs[this_node->axis] = pivot[this_node->axis];
-    r_mins[this_node->axis] = pivot[this_node->axis];
+  //   l_maxs[this_node->axis] = pivot[this_node->axis];
+  //   r_mins[this_node->axis] = pivot[this_node->axis];
 
-    ++level;
+  //   ++level;
 
-    size_t r_count = dataset_end - pivot;
-    size_t l_count = pivot - dataset_start;
+  //   size_t r_count = dataset_end - pivot;
+  //   size_t l_count = pivot - dataset_start;
 
-    if (pivot < dataset_end)
-    { // sending data
-      size_t r_idx_offset = l_count;
-      params[0] = r_count;
-      params[1] = r_idx_offset;
+  //   if (pivot < dataset_end)
+  //   { // sending data
+  //     size_t r_idx_offset = l_count;
+  //     params[0] = r_count;
+  //     params[1] = r_idx_offset;
 
-      // MPI_Isend(&params, 2, my_MPI_SIZE_T, myid + 1, level + tag_param, MPI_COMM_WORLD, &request_count);
-      // MPI_Isend(&r_mins, NDIM, MPI_TYPE, myid + 1, level + tag_mins, MPI_COMM_WORLD, &request_mins);
-      // MPI_Isend(&maxs, NDIM, MPI_TYPE, myid + 1, level + tag_maxs, MPI_COMM_WORLD, &request_maxs);
-      // MPI_Isend(pivot + NDIM, r_count, MPI_TYPE, 1, level + tag_data, MPI_COMM_WORLD, &request);
-    }
+  //     // MPI_Isend(&params, 2, my_MPI_SIZE_T, myid + 1, level + tag_param, MPI_COMM_WORLD, &request_count);
+  //     // MPI_Isend(&r_mins, NDIM, MPI_TYPE, myid + 1, level + tag_mins, MPI_COMM_WORLD, &request_mins);
+  //     // MPI_Isend(&maxs, NDIM, MPI_TYPE, myid + 1, level + tag_maxs, MPI_COMM_WORLD, &request_maxs);
+  //     // MPI_Isend(pivot + NDIM, r_count, MPI_TYPE, 1, level + tag_data, MPI_COMM_WORLD, &request);
+  //   }
 
-    if (dataset_start < pivot)
-    {
-      size_t last_index = 1;
-      build_kdtree_rec(dataset_start, pivot - NDIM, this_node, this_node->axis, mins, l_maxs, this_node->left_idx, &last_index);
-      treeprint(local_tree, 0);
-    }
-  }
+  //   if (dataset_start < pivot)
+  //   {
+  //     size_t last_index = 1;
+  //     build_kdtree_rec(dataset_start, pivot - NDIM, this_node, this_node->axis, mins, l_maxs, this_node->left_idx, &last_index);
+  //     treeprint(local_tree, 0);
+  //   }
+  // }
+  return 0;
 }
