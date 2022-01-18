@@ -139,6 +139,18 @@ void treeprint(KdNode *root, int level)
   fflush(stdout);
 }
 
+void straight_treeprint(KdNode *root, size_t tree_size)
+{
+  for (size_t i = 0; i < tree_size; ++i)
+  {
+    KdNode n = root[i];
+    printf("node: ");
+    print_k_point(n.value);
+    printf("\t left: %ld, right: %ld ", n.left_idx, n.right_idx);
+    printf("idx: %ld, real idx: %ld\n", n.idx, i);
+  }
+}
+
 void swap_k(TYPE *a, TYPE *b)
 {
   TYPE temp[NDIM];
@@ -335,6 +347,10 @@ void add_offset(KdNode *tree, size_t tree_size, size_t offset)
   for (size_t i = 0; i < tree_size; ++i)
   {
     tree[i].idx += offset;
+    if (tree[i].right_idx)
+      tree[i].right_idx += offset;
+    if (tree[i].left_idx)
+      tree[i].left_idx += offset;
   }
 };
 
@@ -410,9 +426,6 @@ int main(int argc, char **argv)
     this_node->axis = axis;
     this_node->idx = 0;
 
-    this_node->left_idx = 1;
-    this_node->right_idx = 0;
-
     TYPE mean = 0.5 * (mins[this_node->axis] + maxs[this_node->axis]);
     TYPE *pivot = partition_k(dataset_start, dataset_end, mean, this_node->axis);
 
@@ -432,38 +445,51 @@ int main(int argc, char **argv)
 
     if (pivot < dataset_end)
     { // sending data
-      size_t r_idx_offset = l_count;
+      size_t r_idx_offset = l_count / NDIM + 1;
       params[0] = r_count;
       params[1] = r_idx_offset;
+      this_node->right_idx = r_idx_offset;
 
       MPI_Isend(&params, 2, my_MPI_SIZE_T, myid + 1, level + tag_param, MPI_COMM_WORLD, &request_count);
       MPI_Isend(&r_mins, NDIM, MPI_TYPE, myid + 1, level + tag_mins, MPI_COMM_WORLD, &request_mins);
       MPI_Isend(&maxs, NDIM, MPI_TYPE, myid + 1, level + tag_maxs, MPI_COMM_WORLD, &request_maxs);
       MPI_Isend(pivot + NDIM, r_count, MPI_TYPE, 1, level + tag_data, MPI_COMM_WORLD, &request);
     }
+    else
+      this_node->right_idx = 0;
 
+    size_t last_index;
     if (dataset_start < pivot)
     {
-      // build_tree(dataset_start, pivot - NDIM, mins, l_maxs, 0);
-      // build_kdtree_rec(dataset_start, pivot - NDIM, local_tree, level - 1, mins, l_maxs, 0, 0);
-      size_t last_index = 1;
+      this_node->left_idx = 1;
+      last_index = 1;
       build_kdtree_rec(dataset_start, pivot - NDIM, local_tree, this_node->axis, mins, l_maxs, this_node->left_idx, &last_index);
-      treeprint(local_tree, 0);
     }
+    else
+      this_node->left_idx = 0;
 
     if (pivot < dataset_end)
     {
       size_t r_tree_size = r_count / NDIM;
-      KdNode *right_tree = malloc(r_tree_size * sizeof(KdNode));
-      MPI_Recv(right_tree, r_count * sizeof(KdNode), MPI_UNSIGNED_CHAR, myid + 1, level + tag_tree, MPI_COMM_WORLD, &tree_status);
+      // KdNode *right_tree = malloc(r_tree_size * sizeof(KdNode));
+      KdNode *right_tree = local_tree + ++last_index;
 #ifdef DEBUG
-    printf("\n****************SENTINEL0****************\n");
-    treeprint(right_tree, 0);
-    fflush(stdout);
+      // printf("r_count : %ld\n", r_count);
+      // printf("l_count : %ld\n", l_count);
+      // printf("dataset_size : %ld\n", dataset_size);
+      // printf("tree_begin: %u\n", local_tree);
+      // printf("right_tree: %u \n", right_tree);
+      // fflush(stdout);
+#endif
+
+      MPI_Recv(right_tree, r_tree_size * sizeof(KdNode), MPI_UNSIGNED_CHAR, myid + 1, level + tag_tree, MPI_COMM_WORLD, &tree_status);
+#ifdef DEBUG
+      printf("\n****************SENTINEL0****************\n");
+      straight_treeprint(local_tree, dataset_size);
+      treeprint(local_tree, 0);
+      fflush(stdout);
 #endif
     }
-
-    // treeprint(local_tree, 0);
   }
 
   if (myid == 1)
@@ -487,13 +513,16 @@ int main(int argc, char **argv)
     size_t starting_index = 0;
     build_kdtree_rec(dataset_start, dataset_end, local_tree, level - 1, mins, maxs, starting_index, &last_index);
 
-    // add_offset(local_tree, tree_size, idx_offset);
+    add_offset(local_tree, tree_size, idx_offset);
     MPI_Send(local_tree, tree_size * sizeof(KdNode), MPI_UNSIGNED_CHAR, myid - reciever_offset, level + tag_tree, MPI_COMM_WORLD);
+    // recursive_treeprint(local_tree - idx_offset, local_tree->idx, 0);
 #ifdef DEBUG
-    printf("\n****************SENTINEL1****************\n");
-    treeprint(local_tree, 0);
-    fflush(stdout);
+    // printf("\n****************SENTINEL1****************\n");
+    // treeprint(local_tree, 0);
+    // fflush(stdout);
 #endif
+    // printf("I'm proc %d and I ended my job", myid);
+    fflush(stdout);
   }
 
   MPI_Finalize();
