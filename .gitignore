@@ -405,3 +405,4 @@ MigrationBackup/
 .ionide/
 
 .vscode
+tmp.txt
