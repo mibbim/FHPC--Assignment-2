@@ -277,6 +277,7 @@ KdNode *build_tree(TYPE *dataset_start, TYPE *dataset_end,
 
   return my_tree;
 }
+
 TYPE *create_dataset(size_t dataset_size)
 {
   TYPE *dataset = (TYPE *)OOM_GUARD(malloc(dataset_size * NDIM * sizeof(TYPE))); // plain array
@@ -304,31 +305,6 @@ int two_pow(int exponent)
 {
   return (1 << exponent);
 }
-
-// void build_mpi_tree(TYPE *dataset_start, TYPE *dataset_end,
-//                     TYPE *mins, TYPE *maxs,
-//                     int prev_axis,
-//                     int level, int myid, int max_level)
-// {
-//   if (dataset_start > dataset_end)
-//     return;
-
-//   size_t data_count = (dataset_end - dataset_start + NDIM);
-//   size_t tree_size = data_count / NDIM;
-
-//   if (level == max_level)
-//   {
-//     int lvl_offset = two_pow(level - 1);
-
-//     KdNode *local_tree = malloc(tree_size * sizeof(KdNode));
-//     build_kdtree_rec(dataset_start, dataset_end, local_tree, prev_axis, mins, maxs, 0, 0);
-//     // update indexes
-//     // send the tree to ancestors
-//     return;
-//   }
-
-//   int recv_offset = two_pow(level - 1);
-// }
 
 void add_offset(KdNode *tree, size_t tree_size, size_t offset)
 {
