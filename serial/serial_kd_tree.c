@@ -297,7 +297,7 @@ KdNode *build_tree(TYPE *dataset_start, TYPE *dataset_end,
 // int main(int argc, char **argv)
 int main()
 {
-    size_t dataset_size = 10;
+    size_t dataset_size = 20;
     TYPE *dataset = (TYPE *)OOM_GUARD(malloc(dataset_size * NDIM * sizeof(TYPE))); // plain array
 
     srand48(12345);
@@ -348,7 +348,7 @@ int main()
     //                                    mins, maxs, 0);
 
     KdNode *my_tree = build_tree(dataset, dataset + (dataset_size - 1) * NDIM,
-                                 mins, maxs, 0);
+                                 mins, maxs, -1);
 
 #ifdef DEBUG
         printf("TREE CREATED \n");
