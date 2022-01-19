@@ -291,15 +291,11 @@ void build_mpi_tree(TYPE *dataset_start, TYPE *dataset_end,
 {
   if (dataset_start > dataset_end)
     return;
-#ifdef DEBUG
-  printf("process: %d, at level %d (max is %d) will process the following data:\n", myid, level, max_level);
-  print_dataset(dataset_start, (dataset_end - dataset_start + NDIM) / NDIM, NDIM);
-#endif
 
   if (level >= max_level)
   {
 #ifdef DEBUG
-    // printf("process: %d, at level %d (max is %d) will serially work on the following data:\n", myid, level, max_level);
+    // if (myid == MASTER)
     // print_dataset(dataset_start, (dataset_end - dataset_start + NDIM) / NDIM, NDIM);
 #endif
     build_kdtree_rec(dataset_start, dataset_end, local_tree, prev_axis, mins, maxs, *last_used_index, last_used_index);
@@ -332,6 +328,18 @@ void build_mpi_tree(TYPE *dataset_start, TYPE *dataset_end,
   size_t l_count = pivot - dataset_start;
   ++level;
   int recv_offset = two_pow(level - 1);
+#ifdef DEBUG
+  if (myid == MASTER)
+  {
+    printf("process: %d, at level %d before splitting:\n", myid, level, max_level);
+    straight_treeprint(local_tree, tree_size);
+    printf("\n\n");
+    fflush(stdout);
+    // printf("process: %d, at level %d (max is %d) will process the following data:\n", myid, level, max_level);
+    // print_dataset(dataset_start, (dataset_end - dataset_start + NDIM) / NDIM, NDIM);
+  }
+#endif
+
   if (pivot < dataset_end)
   {
     // preparing needed parameters
@@ -364,6 +372,19 @@ void build_mpi_tree(TYPE *dataset_start, TYPE *dataset_end,
                    mins, l_maxs, local_tree, this_node->axis,
                    0, level, myid, max_level, last_used_index);
   }
+  else
+    this_node->left_idx = 0;
+#ifdef DEBUG
+  if (myid == MASTER)
+  {
+    printf("process: %d, at level %d after left process:\n", myid, level, max_level);
+    straight_treeprint(local_tree, tree_size);
+    printf("\n\n");
+    fflush(stdout);
+    // printf("process: %d, at level %d (max is %d) will process the following data:\n", myid, level, max_level);
+    // print_dataset(dataset_start, (dataset_end - dataset_start + NDIM) / NDIM, NDIM);
+  }
+#endif
 
   size_t r_tree_size = r_count / NDIM;
   if (pivot < dataset_end)
@@ -564,16 +585,6 @@ int main(int argc, char **argv)
     //     printf("process: %d, at level %d (max is %d) recieved the following data:\n", myid, level, max_level);
     //     print_dataset(dataset_start, (dataset_end - dataset_start + NDIM) / NDIM, NDIM);
     // #endif
-    if (myid == 3)
-    {
-      printf("\n**************SENTINEL****************\n");
-      printf("%d : etreems %f, %f, %f, %f\n", myid, mins[0], mins[1], maxs[0], maxs[1]);
-      printf("data: \n");
-      print_dataset(dataset_start, (dataset_end - dataset_start + NDIM) / NDIM, NDIM);
-      fflush(stdout);
-      printf("\n**************************************\n");
-    }
-
     local_tree = malloc(tree_size * sizeof(KdNode));
     size_t last_index = 0;
     size_t starting_index = 0;
@@ -582,11 +593,11 @@ int main(int argc, char **argv)
                    mins, maxs, local_tree, level - 1, idx_offset, level, myid, max_level, &last_index);
 
 #ifdef DEBUG
-    printf("\n**********TREE CREATED BY PROCESS %d*************\n", myid);
-    // treeprint(local_tree, 0);
-    add_offset(local_tree, tree_size, idx_offset);
-    straight_treeprint(local_tree, tree_size);
-    fflush(stdout);
+    // printf("\n**********TREE CREATED BY PROCESS %d*************\n", myid);
+    // // treeprint(local_tree, 0);
+    // add_offset(local_tree, tree_size, idx_offset);
+    // straight_treeprint(local_tree, tree_size);
+    // fflush(stdout);
 #endif
 
     // printf("I'm precess %d trying to send the created tree to %d, tag: %d at level %d\n", myid, myid - reciever_offset, level + tag_tree, level);
