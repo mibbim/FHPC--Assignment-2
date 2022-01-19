@@ -335,16 +335,6 @@ void build_mpi_tree(TYPE *dataset_start, TYPE *dataset_end,
   size_t data_count = (dataset_end - dataset_start + NDIM);
   size_t tree_size = data_count / NDIM;
 
-  // {
-  //   int lvl_offset = two_pow(level - 1);
-  //   KdNode *local_tree = malloc(tree_size * sizeof(KdNode));
-  //   size_t last_index = 0;
-  //   size_t starting_index = 0;
-  //   add_offset(local_tree, tree_size, idx_offset);
-  //   MPI_Send(local_tree, tree_size * sizeof(KdNode), MPI_UNSIGNED_CHAR, myid - lvl_offset, level + tag_tree, MPI_COMM_WORLD);
-  //   return;
-  // }
-
   KdNode *this_node = local_tree + *last_used_index;
   this_node->axis = (prev_axis + 1) % NDIM;
   this_node->idx = (*last_used_index);
@@ -429,6 +419,26 @@ void straight_treeprint(KdNode *root, size_t tree_size)
     printf("\t left: %ld, right: %ld ", n.left_idx, n.right_idx);
     printf("idx: %ld, real idx: %ld\n", n.idx, i);
   }
+}
+
+int get_starting_level(int myid, int numprocs, int max_level)
+{
+  int levels[numprocs];
+  int delta = 1;
+  int setting_level = max_level;
+  while (delta < numprocs)
+  {
+    for (int i = 0; i < numprocs; i += delta)
+    {
+      levels[i] = setting_level;
+    }
+    --setting_level;
+    ++delta;
+  }
+  levels[0] = 0;
+
+
+  return levels[myid]; 
 }
 
 int main(int argc, char **argv)
