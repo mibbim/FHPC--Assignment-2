@@ -347,6 +347,13 @@ void build_mpi_tree(TYPE *dataset_start, TYPE *dataset_end,
     size_t params[2];
     params[0] = r_count;
     params[1] = r_idx_offset;
+#ifdef DEBUG
+    if (myid == MASTER)
+    {
+      printf("r_idx: %ld, last_used: %ld , this_node idx: %ld, l_count: %ld \n", r_idx_offset, *last_used_index, this_node->idx, l_count);
+      fflush(stdout);
+    }
+#endif
     this_node->right_idx = r_idx_offset;
     // sending data
     MPI_Isend(&params, 2, my_MPI_SIZE_T, myid + recv_offset, level + tag_param, MPI_COMM_WORLD, &req);
