@@ -294,10 +294,11 @@ void build_mpi_tree(TYPE *dataset_start, TYPE *dataset_end,
 
   if (level >= max_level)
   {
-#ifdef DEBUG
-    // if (myid == MASTER)
+/* #ifdef DEBUG
+    printf("proc: %d level serial: %d, &last_used_index %u, last_used_idx: %ld \n", myid, level, last_used_index, *last_used_index);
+    fflush(stdout);
     // print_dataset(dataset_start, (dataset_end - dataset_start + NDIM) / NDIM, NDIM);
-#endif
+#endif */
     build_kdtree_rec(dataset_start, dataset_end, local_tree, prev_axis, mins, maxs, *last_used_index, last_used_index);
     return;
   }
@@ -306,7 +307,7 @@ void build_mpi_tree(TYPE *dataset_start, TYPE *dataset_end,
 
   KdNode *this_node = local_tree + *last_used_index;
   this_node->axis = (prev_axis + 1) % NDIM;
-  this_node->idx = (*last_used_index);
+  this_node->idx = (*last_used_index)++;
 
   TYPE mean = 0.5 * (mins[this_node->axis] + maxs[this_node->axis]);
   TYPE *pivot = partition_k(dataset_start, dataset_end, mean, this_node->axis);
@@ -328,32 +329,32 @@ void build_mpi_tree(TYPE *dataset_start, TYPE *dataset_end,
   size_t l_count = pivot - dataset_start;
   ++level;
   int recv_offset = two_pow(level - 1);
-#ifdef DEBUG
-  if (myid == MASTER)
-  {
-    printf("process: %d, at level %d before splitting:\n", myid, level, max_level);
-    straight_treeprint(local_tree, tree_size);
-    printf("\n\n");
-    fflush(stdout);
-    // printf("process: %d, at level %d (max is %d) will process the following data:\n", myid, level, max_level);
-    // print_dataset(dataset_start, (dataset_end - dataset_start + NDIM) / NDIM, NDIM);
-  }
-#endif
+  /* #ifdef DEBUG
+    if (myid == MASTER)
+    {
+      printf("process: %d, at level %d before splitting:\n", myid, level, max_level);
+      straight_treeprint(local_tree, tree_size);
+      printf("\n\n");
+      fflush(stdout);
+      // printf("process: %d, at level %d (max is %d) will process the following data:\n", myid, level, max_level);
+      // print_dataset(dataset_start, (dataset_end - dataset_start + NDIM) / NDIM, NDIM);
+    }
+  #endif */
 
+  size_t r_idx_offset = this_node->idx + l_count / NDIM + 1;
   if (pivot < dataset_end)
   {
     // preparing needed parameters
-    size_t r_idx_offset = l_count / NDIM + 1;
     size_t params[2];
     params[0] = r_count;
     params[1] = r_idx_offset;
-#ifdef DEBUG
-    if (myid == MASTER)
-    {
-      printf("r_idx: %ld, last_used: %ld , this_node idx: %ld, l_count: %ld \n", r_idx_offset, *last_used_index, this_node->idx, l_count);
-      fflush(stdout);
-    }
-#endif
+    /* #ifdef DEBUG
+        if (myid == MASTER)
+        {
+          printf("r_idx: %ld, last_used: %ld , this_node idx: %ld, value: %f, l_count: %ld \n", r_idx_offset, *last_used_index, this_node->idx, this_node->value[0],l_count);
+          fflush(stdout);
+        }
+    #endif */
     this_node->right_idx = r_idx_offset;
     // sending data
     MPI_Isend(&params, 2, my_MPI_SIZE_T, myid + recv_offset, level + tag_param, MPI_COMM_WORLD, &req);
@@ -361,42 +362,42 @@ void build_mpi_tree(TYPE *dataset_start, TYPE *dataset_end,
     MPI_Isend(maxs, NDIM, MPI_TYPE, myid + recv_offset, level + tag_maxs, MPI_COMM_WORLD, &req);
     MPI_Isend(pivot + NDIM, r_count, MPI_TYPE, myid + recv_offset, level + tag_data, MPI_COMM_WORLD, &req);
 
-    // printf("\n--------------------------------------------\n");
-    // printf("I'm procesees %d and i'm sending %d the data at level %d\n", myid, level);
-    // printf("tags: %d, to: %d\n", level + tag_mins, level + tag_maxs, myid + recv_offset);
-    // printf("--------------------------------------------\n");
-    // fflush(stdout);
-    // printf("I'm procesees %d and i'm sending the following dataset at level: %d \n", myid, level);
-    // print_dataset(pivot + NDIM, r_count / NDIM, NDIM);
+    /*     printf("\n--------------------------------------------\n");
+        printf("I'm procesees %d and i'm sending %d the data at level %d\n", myid, level);
+        printf("tags: %d, to: %d\n", level + tag_mins, level + tag_maxs, myid + recv_offset);
+        printf("--------------------------------------------\n");
+        fflush(stdout);
+        printf("I'm procesees %d and i'm sending the following dataset at level: %d \n", myid, level);
+        print_dataset(pivot + NDIM, r_count / NDIM, NDIM); */
   }
   else
     this_node->right_idx = 0;
 
   if (dataset_start < pivot)
   {
-    this_node->left_idx = ++(*last_used_index);
+    this_node->left_idx = (*last_used_index);
     build_mpi_tree(dataset_start, pivot - NDIM,
                    mins, l_maxs, local_tree, this_node->axis,
                    0, level, myid, max_level, last_used_index);
   }
   else
     this_node->left_idx = 0;
-#ifdef DEBUG
-  if (myid == MASTER)
-  {
-    printf("process: %d, at level %d after left process:\n", myid, level, max_level);
-    straight_treeprint(local_tree, tree_size);
-    printf("\n\n");
-    fflush(stdout);
-    // printf("process: %d, at level %d (max is %d) will process the following data:\n", myid, level, max_level);
-    // print_dataset(dataset_start, (dataset_end - dataset_start + NDIM) / NDIM, NDIM);
-  }
-#endif
+  /* #ifdef DEBUG
+    if (myid == MASTER)
+    {
+      printf("process: %d, at level %d after left process:\n", myid, level, max_level);
+      straight_treeprint(local_tree, tree_size);
+      printf("\n\n");
+      fflush(stdout);
+      // printf("process: %d, at level %d (max is %d) will process the following data:\n", myid, level, max_level);
+      // print_dataset(dataset_start, (dataset_end - dataset_start + NDIM) / NDIM, NDIM);
+    }
+  #endif */
 
   size_t r_tree_size = r_count / NDIM;
   if (pivot < dataset_end)
   {
-    KdNode *right_tree = local_tree + ++(*last_used_index);
+    KdNode *right_tree = local_tree + r_idx_offset;
     // printf("I'm proc %d and I'm trying to recieve from %d, tag: %d...", myid, myid + recv_offset, level + tag_tree);
     MPI_Recv(right_tree, r_tree_size * sizeof(KdNode), MPI_UNSIGNED_CHAR,
              myid + recv_offset, level + tag_tree,
@@ -449,7 +450,7 @@ int main(int argc, char **argv)
 
   MPI_Request req;
 
-  size_t dataset_size = 10;
+  size_t dataset_size = 20;
   KdNode *local_tree;
   TYPE *dataset_start;
   TYPE *dataset_end;
@@ -553,6 +554,11 @@ int main(int argc, char **argv)
     size_t tree_size = dataset_size;
     size_t last_used_index = 0;
     int level = 0;
+// #ifdef DEBUG
+//     printf("proc: %d level out: %d, &last_used_index %u, last_used_idx: %ld \n", myid, level, &last_used_index, last_used_index);
+//     fflush(stdout);
+//     // print_dataset(dataset_start, (dataset_end - dataset_start + NDIM) / NDIM, NDIM);
+// #endif
 
     build_mpi_tree(dataset_start, dataset_end,
                    mins, maxs, local_tree, -1, 0, level,
@@ -595,16 +601,21 @@ int main(int argc, char **argv)
     local_tree = malloc(tree_size * sizeof(KdNode));
     size_t last_index = 0;
     size_t starting_index = 0;
+/* #ifdef DEBUG
+    printf("proc: %d level: %d, &last_used_index %u, last_used_idx: %ld \n", myid, level, &last_index, last_index);
+    fflush(stdout);
+    // print_dataset(dataset_start, (dataset_end - dataset_start + NDIM) / NDIM, NDIM);
+#endif */
 
     build_mpi_tree(dataset_start, dataset_end,
                    mins, maxs, local_tree, level - 1, idx_offset, level, myid, max_level, &last_index);
 
 #ifdef DEBUG
-    // printf("\n**********TREE CREATED BY PROCESS %d*************\n", myid);
-    // // treeprint(local_tree, 0);
-    // add_offset(local_tree, tree_size, idx_offset);
-    // straight_treeprint(local_tree, tree_size);
-    // fflush(stdout);
+    printf("\n**********TREE CREATED BY PROCESS %d*************\n", myid);
+    treeprint(local_tree, 0);
+    add_offset(local_tree, tree_size, idx_offset);
+    straight_treeprint(local_tree, tree_size);
+    fflush(stdout);
 #endif
 
     // printf("I'm precess %d trying to send the created tree to %d, tag: %d at level %d\n", myid, myid - reciever_offset, level + tag_tree, level);
@@ -614,6 +625,14 @@ int main(int argc, char **argv)
 
   printf("process %d terminated \n", myid);
   fflush(stdout);
+  MPI_Barrier(MPI_COMM_WORLD);
+
+  if (myid == 0){
+    printf("TREE PRODUCED: \n");
+    straight_treeprint(local_tree, dataset_size);
+    treeprint(local_tree, 0);
+
+  }
 
   MPI_Finalize();
 
