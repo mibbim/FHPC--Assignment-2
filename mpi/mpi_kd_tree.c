@@ -240,7 +240,7 @@ maybe the index should be shifted of an int do that root has index 1 and leaves 
   return;
 }
 
-KdNode *build_tree(TYPE *dataset_start, TYPE *dataset_end,
+/* KdNode *build_tree(TYPE *dataset_start, TYPE *dataset_end,
                    TYPE *mins, TYPE *maxs, int prev_axis)
 {
   // Interface for the recursive function
@@ -254,7 +254,7 @@ KdNode *build_tree(TYPE *dataset_start, TYPE *dataset_end,
                    my_tree, prev_axis, mins, maxs, starting_idx, &current_last_index);
 
   return my_tree;
-}
+} */
 TYPE *create_dataset(size_t dataset_size)
 {
   TYPE *dataset = (TYPE *)OOM_GUARD(malloc(dataset_size * NDIM * sizeof(TYPE))); // plain array
@@ -294,11 +294,11 @@ void build_mpi_tree(TYPE *dataset_start, TYPE *dataset_end,
 
   if (level >= max_level)
   {
-/* #ifdef DEBUG
-    printf("proc: %d level serial: %d, &last_used_index %u, last_used_idx: %ld \n", myid, level, last_used_index, *last_used_index);
-    fflush(stdout);
-    // print_dataset(dataset_start, (dataset_end - dataset_start + NDIM) / NDIM, NDIM);
-#endif */
+    /* #ifdef DEBUG
+        printf("proc: %d level serial: %d, &last_used_index %u, last_used_idx: %ld \n", myid, level, last_used_index, *last_used_index);
+        fflush(stdout);
+        // print_dataset(dataset_start, (dataset_end - dataset_start + NDIM) / NDIM, NDIM);
+    #endif */
     build_kdtree_rec(dataset_start, dataset_end, local_tree, prev_axis, mins, maxs, *last_used_index, last_used_index);
     return;
   }
@@ -554,11 +554,6 @@ int main(int argc, char **argv)
     size_t tree_size = dataset_size;
     size_t last_used_index = 0;
     int level = 0;
-// #ifdef DEBUG
-//     printf("proc: %d level out: %d, &last_used_index %u, last_used_idx: %ld \n", myid, level, &last_used_index, last_used_index);
-//     fflush(stdout);
-//     // print_dataset(dataset_start, (dataset_end - dataset_start + NDIM) / NDIM, NDIM);
-// #endif
 
     build_mpi_tree(dataset_start, dataset_end,
                    mins, maxs, local_tree, -1, 0, level,
@@ -601,11 +596,11 @@ int main(int argc, char **argv)
     local_tree = malloc(tree_size * sizeof(KdNode));
     size_t last_index = 0;
     size_t starting_index = 0;
-/* #ifdef DEBUG
-    printf("proc: %d level: %d, &last_used_index %u, last_used_idx: %ld \n", myid, level, &last_index, last_index);
-    fflush(stdout);
-    // print_dataset(dataset_start, (dataset_end - dataset_start + NDIM) / NDIM, NDIM);
-#endif */
+    /* #ifdef DEBUG
+        printf("proc: %d level: %d, &last_used_index %u, last_used_idx: %ld \n", myid, level, &last_index, last_index);
+        fflush(stdout);
+        // print_dataset(dataset_start, (dataset_end - dataset_start + NDIM) / NDIM, NDIM);
+    #endif */
 
     build_mpi_tree(dataset_start, dataset_end,
                    mins, maxs, local_tree, level - 1, idx_offset, level, myid, max_level, &last_index);
@@ -627,12 +622,16 @@ int main(int argc, char **argv)
   fflush(stdout);
   MPI_Barrier(MPI_COMM_WORLD);
 
-  if (myid == 0){
+  if (myid == 0)
+  {
     printf("TREE PRODUCED: \n");
     straight_treeprint(local_tree, dataset_size);
     treeprint(local_tree, 0);
-
+    // free(dataset);
   }
+
+  free(local_tree);
+  free(dataset_start);
 
   MPI_Finalize();
 
