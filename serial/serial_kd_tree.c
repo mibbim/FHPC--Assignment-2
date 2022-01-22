@@ -59,10 +59,12 @@ void print_node(KdNode *node)
 /* Utility fuction */
 {
     printf("\n------------------------\n");
-    printf("\tnode with index %ld at location %u\n", node->idx, node);
+    // printf("\tnode with index %ld at location %u\n", node->idx, node);
+    printf("\tnode with index %zu at location %u\n", node->idx, node);
     printf("\t value: ");
     print_k_point(node->value);
-    printf("\tAxis: %d \n\tLeft: %ld, Right: %ld \n\n", node->axis, node->left_idx, node->right_idx);
+    // printf("\tAxis: %d \n\tLeft: %ld, Right: %ld \n\n", node->axis, node->left_idx, node->right_idx);
+    printf("\tAxis: %d \n\tLeft: %zu, Right: %zu \n\n", node->axis, node->left_idx, node->right_idx);
     printf("------------------------\n\n");
     fflush(stdout);
 }
@@ -109,6 +111,7 @@ void treeprint(KdNode *root, int level)
         printf(i == level - 1 ? " |+|" : "  ");
 
     KdNode node = root[0];
+    print_k_point(node.value);
 
     recursive_treeprint(root, node.left_idx, level + 1);
     recursive_treeprint(root, node.right_idx, level + 1);
@@ -231,6 +234,7 @@ KdNode *build_tree(TYPE *dataset_start, TYPE *dataset_end,
 {
     // Interface for the recursive function
     size_t data_count = dataset_end - dataset_start;
+    // size_t tree_size = data_count / NDIM;
     KdNode *my_tree = (KdNode *)malloc(data_count * sizeof(KdNode));
     size_t current_last_index = 0;
     size_t starting_idx = 0;
@@ -252,10 +256,17 @@ KdNode *build_tree(TYPE *dataset_start, TYPE *dataset_end,
     return my_tree;
 }
 
-// int main(int argc, char **argv)
-int main()
-{
-    size_t dataset_size = 20;
+// int main()
+int main(int argc, char **argv)
+{   
+    if (argc < 2){
+        printf("Invalid arg number, usage \n");
+        printf("build_tee.x dataset_size");
+        return 1;
+    }
+
+    size_t dataset_size;
+    sscanf(argv[1], "%zu", &dataset_size);
     TYPE *dataset = (TYPE *)OOM_GUARD(malloc(dataset_size * NDIM * sizeof(TYPE))); // plain array
 
     srand48(12345);
