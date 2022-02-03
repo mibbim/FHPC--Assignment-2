@@ -558,7 +558,7 @@ int main(int argc, char **argv)
     build_mpi_tree(dataset_start, dataset_end,
                    mins, maxs, local_tree, -1, 0, level,
                    myid, max_level, &last_used_index);
-
+    free(dataset_start);
     sleep(2);
     printf("\n\n");
     straight_treeprint(local_tree, dataset_size);
@@ -604,7 +604,7 @@ int main(int argc, char **argv)
 
     build_mpi_tree(dataset_start, dataset_end,
                    mins, maxs, local_tree, level - 1, idx_offset, level, myid, max_level, &last_index);
-
+    free(dataset_start);
 #ifdef DEBUG
     printf("\n**********TREE CREATED BY PROCESS %d*************\n", myid);
     treeprint(local_tree, 0);
@@ -616,22 +616,20 @@ int main(int argc, char **argv)
     // printf("I'm precess %d trying to send the created tree to %d, tag: %d at level %d\n", myid, myid - reciever_offset, level + tag_tree, level);
     fflush(stdout);
     MPI_Isend(local_tree, tree_size * sizeof(KdNode), MPI_UNSIGNED_CHAR, myid - reciever_offset, level + tag_tree, MPI_COMM_WORLD, &req);
+    free(local_tree);
   }
 
   printf("process %d terminated \n", myid);
   fflush(stdout);
   MPI_Barrier(MPI_COMM_WORLD);
 
-  if (myid == 0)
+  if (myid == MASTER)
   {
     printf("TREE PRODUCED: \n");
     straight_treeprint(local_tree, dataset_size);
     treeprint(local_tree, 0);
-    // free(dataset);
+    free(local_tree);
   }
-
-  free(local_tree);
-  free(dataset_start);
 
   MPI_Finalize();
 
