@@ -437,14 +437,22 @@ int get_starting_level(int myid, int numprocs, int max_level)
   }
   levels[0] = 0;
 
-
-  return levels[myid]; 
+  return levels[myid];
 }
 
 int main(int argc, char **argv)
 {
-  int myid = 0;
-  size_t dataset_size = 10;
+  if (argc < 2)
+  {
+    printf("Invalid arg number, usage \n");
+    printf("build_tee.x dataset_size");
+    return 1;
+  }
+
+  size_t dataset_size;
+  sscanf(argv[1], "%zu", &dataset_size);
+  int myid;
+
   KdNode *local_tree;
   TYPE *dataset_start;
   TYPE *dataset_end;

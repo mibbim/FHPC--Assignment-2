@@ -27,7 +27,7 @@
                                                                     (double)ts.tv_nsec * 1e-9)
 #endif
 
-#define NDIM 2
+#define NDIM 1
 
 /**
  * out of memomy guard
@@ -190,20 +190,20 @@ KdNode *build_kdtree_openmp(TYPE *dataset_start, TYPE *dataset_end, // addresses
                             TYPE *mins, TYPE *maxs,                 // vectors of extreem values in the curren branch along each axes
                             size_t my_idx,
                             size_t *current_last_index)
-/*
-Note, the implementation is not ideal, the leaves point to the root
-maybe the index should be shifted of an int do that root has index 1 and leaves have childs 0;
-*/
 {
     if (dataset_start > dataset_end)
-        return 0;
+    {
+        printf("Error in data riecieved\n");
+        exit(66);
+        return NULL;
+    }
 
     KdNode *this_node = tree_location + my_idx;
     this_node->idx = my_idx;
     this_node->axis = (prev_axis + 1) % NDIM;
 
-    TYPE l_maxs[NDIM];
-    TYPE r_mins[NDIM];
+    TYPE *l_maxs = malloc(NDIM * sizeof(TYPE));
+    TYPE *r_mins = malloc(NDIM * sizeof(TYPE));
 
     memcpy(l_maxs, maxs, NDIM * sizeof(TYPE));
     memcpy(r_mins, mins, NDIM * sizeof(TYPE));
@@ -219,63 +219,66 @@ maybe the index should be shifted of an int do that root has index 1 and leaves 
 #ifdef DEBUG
     // printf("Thread %d precessed Node %zu \n", omp_get_thread_num(), this_node->idx);
 #endif
-    /* printf("pivot: %f, axes: %d = operated on: \n", pivot[this_node->axis], this_node->axis);
-     // print_node(this_node);
-
-     print_dataset(dataset_start, (dataset_end - dataset_start + NDIM) / NDIM, NDIM);
-     TYPE *L_END = pivot - NDIM;
-     TYPE *R_STA = pivot + NDIM;*/
-
     if (dataset_start < pivot)
     {
 #pragma omp atomic capture
         this_node->left_idx = ++(*current_last_index);
-        ;
-#pragma omp task
-        build_kdtree_openmp(dataset_start, pivot - NDIM, tree_location, this_node->axis, mins, l_maxs, this_node->left_idx, current_last_index);
+
+        TYPE *p_mins = &mins[0];
+        TYPE *p_maxs = &l_maxs[0];
+#pragma omp task shared(current_last_index, p_mins, p_maxs) firstprivate(tree_location, dataset_start, pivot, this_node)
+        build_kdtree_openmp(dataset_start, pivot - NDIM, tree_location, this_node->axis, p_mins, p_maxs, this_node->left_idx, current_last_index);
     }
     else
+    {
         this_node->left_idx = 0;
-
+        free(l_maxs);
+        free(mins);
+    }
     if (pivot < dataset_end)
     {
 #pragma omp atomic capture
         this_node->right_idx = ++(*current_last_index);
-#pragma omp task
-        build_kdtree_openmp(pivot + NDIM, dataset_end, tree_location, this_node->axis, r_mins, maxs, this_node->right_idx, current_last_index);
+
+        TYPE *p_mins = &r_mins[0];
+        TYPE *p_maxs = &maxs[0];
+
+#pragma omp task shared(current_last_index, p_mins, p_maxs) firstprivate(tree_location, dataset_end, pivot, this_node)
+        build_kdtree_openmp(pivot + NDIM, dataset_end, tree_location, this_node->axis, p_mins, p_maxs, this_node->right_idx, current_last_index);
     }
     else
+    {
         this_node->right_idx = 0;
-
+        free(r_mins);
+        free(maxs);
+    }
     return this_node;
 }
 
-KdNode *build_tree_omp(TYPE *dataset_start, TYPE *dataset_end,
+/* KdNode *build_tree_omp(TYPE *dataset_start, TYPE *dataset_end,
                        TYPE *mins, TYPE *maxs, int prev_axis)
 {
     // Interface for the recursive function
     size_t data_count = dataset_end - dataset_start;
-    KdNode *my_tree = (KdNode *)malloc(data_count * sizeof(KdNode));
+    size_t tree_size = data_count / NDIM;
+    KdNode *my_tree = (KdNode *)malloc(tree_size * sizeof(KdNode));
     size_t current_last_index = 0;
     size_t starting_idx = 0;
 
-/* #ifdef DEBUG
- printf("extreems point of tree:\n");
- print_k_point(mins);
- print_k_point(maxs);
- printf("operating od axis: %d\n ", (prev_axis + 1) % NDIM);
- fflush(stdout);
-#endif */
+#ifdef DEBUG
+    printf("extreems point of tree:\n");
+    print_k_point(mins);
+    print_k_point(maxs);
+    printf("operating od axis: %d\n ", (prev_axis + 1) % NDIM);
+    fflush(stdout);
+#endif
 #pragma omp parallel
 
     build_kdtree_openmp(dataset_start, dataset_end,
                         my_tree, prev_axis, mins, maxs, starting_idx, &current_last_index);
 
-    /* #ifdef DEBUG
-        treeprint(my_tree, 0);
-    #endif */
     return my_tree;
-}
+} */
 
 void straight_treeprint(KdNode *root, size_t tree_size)
 {
@@ -293,7 +296,7 @@ int main(int argc, char **argv)
     if (argc < 3)
     {
         printf("Invalid arg number, usage \n");
-        printf("build_tee.x dataset_size thread_num");
+        printf("build_tee.x dataset_size thread_num\n");
         return 1;
     }
 
@@ -306,6 +309,8 @@ int main(int argc, char **argv)
     double generation_start = CPU_TIME;
     TYPE *dataset = (TYPE *)OOM_GUARD(malloc(dataset_size * NDIM * sizeof(TYPE))); // plain array
 
+    printf("DATASET BOUNDARIES: \n %p, %p \n", dataset, dataset + dataset_size * NDIM);
+
     srand48(12345);
 
     for (size_t i = 0; i < dataset_size; ++i)
@@ -317,6 +322,7 @@ int main(int argc, char **argv)
         }
         dataset[offset] = i;
     }
+    // print_dataset(dataset, dataset_size, NDIM);
     double generation_end = CPU_TIME;
 #ifdef DEBUG
     printf("\n DATASET CREATED in %f\n", generation_end - generation_start);
@@ -326,8 +332,11 @@ int main(int argc, char **argv)
 #endif
 
     double build_start = CPU_TIME;
-    TYPE mins[NDIM];
-    TYPE maxs[NDIM];
+    // TYPE mins[NDIM];
+    // TYPE maxs[NDIM];
+
+    TYPE *mins = malloc(NDIM * sizeof(TYPE));
+    TYPE *maxs = malloc(NDIM * sizeof(TYPE));
 
     for (int i = 0; i < NDIM; ++i)
     {
@@ -340,10 +349,12 @@ int main(int argc, char **argv)
     //                              mins, maxs, -1);
     size_t current_last_index = 0;
     KdNode *my_tree = malloc(dataset_size * sizeof(KdNode));
+    printf("TREE BOUNDIARIES \n %p, %p\n", my_tree, my_tree + dataset_size);
+    fflush(stdout);
     // firstprivate dataset_start, dataset_end,prev_axis, mins, maxs, starting idx;
     // shared current_last_index, my_tree
     int prev_axis = -1;
-#pragma omp parallel shared(current_last_index) firstprivate(my_tree, dataset, prev_axis, mins, maxs)
+#pragma omp parallel shared(current_last_index) // firstprivate(my_tree, dataset, prev_axis, mins, maxs)
     {
 #pragma omp single
         my_tree = build_kdtree_openmp(dataset, dataset + (dataset_size - 1) * NDIM, my_tree,
@@ -352,11 +363,13 @@ int main(int argc, char **argv)
     double build_end = CPU_TIME;
 #ifdef DEBUG
     printf("TREE of size %zu CREATED in %f \n", dataset_size, build_end - build_start);
-    straight_treeprint(my_tree, dataset_size);
-    treeprint(my_tree, 0);
-    fflush(stdout);
+    // straight_treeprint(my_tree, dataset_size);
+    // treeprint(my_tree, 0);
+    // fflush(stdout);
 #endif
 
+    // free(mins);
+    // free(maxs);
     free(dataset);
     free(my_tree);
     return 0;
