@@ -320,7 +320,7 @@ int main(int argc, char **argv)
         {
             dataset[offset + k] = drand48();
         }
-        dataset[offset] = i;
+        // dataset[offset] = i;
     }
     // print_dataset(dataset, dataset_size, NDIM);
     double generation_end = CPU_TIME;
