@@ -1,8 +1,8 @@
 
 SRC = hybrid_kd_tree.c
 CC = mpicc
-CFLAGS = -Wall -Wextra -fopenmp
-CCFLAGS_D = -DDEBUG -Wall -Wextra -g
+CFLAGS = -Wall -Wextra -fopenmp -O3
+CCFLAGS_D = -DDEBUG -Wall -Wextra -g -O3
 
 EXE = $(SRC:.c=.x)
 
