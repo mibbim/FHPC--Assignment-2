@@ -1,7 +1,7 @@
 CC = mpicc
 # CC = cc
 CCFLAGS = -Wall -Wextra -O3 -fopenmp 
-CCFLAGS_D = -DDEBUG -Wall -Wextra -g -O3 -fopenmp 
+CCFLAGS_D = -DDEBUG -Wall -Wextra -g -O3 -fopenmp git
 
 SRC = hybrid_kd_tree.c \
 	nov_hybrid_kd_tree.c

@@ -3,6 +3,8 @@
 #PBS -q dssc
 #PBS -l nodes=1:ppn=24
 #PBS -l walltime=1:00:00
+
+module load openmpi
 cd $PBS_O_WORKDIR
 
 for N in 1, 2; do
