@@ -1,17 +1,37 @@
-
-SRC = hybrid_kd_tree.c
 CC = mpicc
-CFLAGS = -Wall -Wextra -fopenmp -O3
-CCFLAGS_D = -DDEBUG -Wall -Wextra -g -O3
+# CC = cc
+CCFLAGS = -Wall -Wextra -O3 -fopenmp 
+CCFLAGS_D = -DDEBUG -Wall -Wextra -g -O3 -fopenmp 
 
+SRC = hybrid_kd_tree.c \
+	nov_hybrid_kd_tree.c
 EXE = $(SRC:.c=.x)
 
+# eliminate default suffixes
+.SUFFIXES:
+SUFFIXES =
 
-default:
-	$(CC) $(SRC) -o $(EXE) $(CFLAGS)
+# just consider our own suffixes
+.SUFFIXES: .c .x
 
-debug:
-	$(CC) $(SRC) -o $(EXE) $(CFLAGS_D)
+all: $(EXE)
+
+.PHONY: all
+
+%.x: %.c 
+	$(CC) $< -o $@ $(CCFLAGS)
+
+
+debug: $(EXE)
+
+.PHONY: debug
+
+%.x: %.c 
+	$(CC) $< -o $@ $(CCFLAGS_D)
+
+
 
 clean:
-	rm $(EXE)
+	rm -f $(EXE) *~
+
+.PHONY: clean
