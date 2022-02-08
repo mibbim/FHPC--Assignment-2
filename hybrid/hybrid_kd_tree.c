@@ -127,17 +127,23 @@ void treeprint(KdNode *root, int level)
 void dump_node(KdNode *tree, size_t i)
 {
     KdNode node = tree[i];
-    printf("\"");
-    print_k_point(node.value);
-    printf("\" -- \"");
-    print_k_point(tree[node.left_idx].value);
-    printf("\"[label=L]\n");
+    if (node.left_idx)
+    {
+        printf("\"");
+        print_k_point(node.value);
+        printf("\" -- \"");
+        print_k_point(tree[node.left_idx].value);
+        printf("\"[label=L]\n");
+    }
 
-    printf("\"");
-    print_k_point(node.value);
-    printf("\" -- \"");
-    print_k_point(tree[node.right_idx].value);
-    printf("\"[label=R]\n");
+    if (node.right_idx)
+    {
+        printf("\"");
+        print_k_point(node.value);
+        printf("\" -- \"");
+        print_k_point(tree[node.right_idx].value);
+        printf("\"[label=R]\n");
+    }
 }
 
 void dump_tree(KdNode *tree, size_t tree_size)
@@ -537,6 +543,7 @@ int main(int argc, char **argv)
 
         MPI_Recv(&params, 2, my_MPI_SIZE_T, myid - reciever_offset, level + tag_param, MPI_COMM_WORLD, &param_status);
         size_t data_count = params[0];
+        size_t idx_offset = params[1];
         size_t tree_size = data_count / NDIM;
 
         dataset_start = (TYPE *)OOM_GUARD(malloc(data_count * sizeof(TYPE)));
@@ -555,7 +562,7 @@ int main(int argc, char **argv)
         build_mpi_tree(dataset_start, dataset_end,
                        mins, maxs, local_tree, level - 1, level, myid, max_level, &last_index);
         free(dataset_start);
-
+        add_offset(local_tree, tree_size, idx_offset);
         MPI_Send(local_tree, tree_size * sizeof(KdNode), MPI_UNSIGNED_CHAR, myid - reciever_offset, level + tag_tree, MPI_COMM_WORLD);
         free(local_tree);
     }
@@ -573,6 +580,7 @@ int main(int argc, char **argv)
                 dataset_end_time - t_start,
                 tree_end - tree_start,
                 dump_end - tree_end);
+        straight_treeprint(local_tree, dataset_size);
         free(local_tree);
     }
 
