@@ -580,7 +580,7 @@ int main(int argc, char **argv)
                 dataset_end_time - t_start,
                 tree_end - tree_start,
                 dump_end - tree_end);
-        straight_treeprint(local_tree, dataset_size);
+        // straight_treeprint(local_tree, dataset_size);
         free(local_tree);
     }
 
