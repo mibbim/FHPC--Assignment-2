@@ -577,6 +577,7 @@ int main(int argc, char **argv)
         // dump_tree(local_tree, dataset_size);
         double dump_end = MPI_Wtime();
         fprintf(stderr, "threads: %d Time: dataset %f, tree %f, dumping %f\n",
+                thread_num, 
                 dataset_end_time - t_start,
                 tree_end - tree_start,
                 dump_end - tree_end);
