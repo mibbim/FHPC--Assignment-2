@@ -1,7 +1,7 @@
 #!/bin/bash
  
 #PBS -q dssc
-#PBS -l nodes=1:ppn=24
+#PBS -l nodes=4:ppn=24
 #PBS -l walltime=1:00:00
 
 module load openmpi
