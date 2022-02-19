@@ -1,5 +1,5 @@
 # CC = mpicc
-CC = cc
+CC = gcc
 CCFLAGS = -Wall -Wextra 
 CCFLAGS_D = -DDEBUG -Wall -Wextra -g -fsanitize=address -fno-omit-frame-pointer
 

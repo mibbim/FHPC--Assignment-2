@@ -60,7 +60,7 @@ void print_node(KdNode *node)
 {
     printf("\n------------------------\n");
     // printf("\tnode with index %ld at location %u\n", node->idx, node);
-    printf("\tnode with index %zu at location %u\n", node->idx, node);
+    printf("\tnode with index %zu at location %p\n", node->idx, node);
     printf("\t value: ");
     print_k_point(node->value);
     // printf("\tAxis: %d \n\tLeft: %ld, Right: %ld \n\n", node->axis, node->left_idx, node->right_idx);
@@ -267,7 +267,6 @@ int main(int argc, char **argv)
         mins[i] = 0;
         maxs[i] = 1;
     }
-    maxs[0] = dataset_size;
 
     KdNode *my_tree = build_tree(dataset, dataset + (dataset_size - 1) * NDIM,
                                  mins, maxs, -1);
