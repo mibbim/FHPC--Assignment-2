@@ -4,7 +4,8 @@ CCFLAGS = -Wall -Wextra
 CCFLAGS_D = -DDEBUG -Wall -Wextra -g -fsanitize=address -fno-omit-frame-pointer
 
 SRC = serial_kd_tree.c \
-		partition_test.c
+		partition_test.c \
+		nov_serial_kd_tree.c
 
 EXE = $(SRC:.c=.x)
 
